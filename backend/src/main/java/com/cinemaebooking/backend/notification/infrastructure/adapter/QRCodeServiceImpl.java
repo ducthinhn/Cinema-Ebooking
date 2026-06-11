@@ -17,13 +17,11 @@ import java.util.Map;
 @Service
 public class QRCodeServiceImpl implements QRCodeService {
 
-    private static final String DEFAULT_CONTENT_PREFIX = "CINEMA:BOOKING:";
-
     @Override
     public byte[] generateQRCode(String bookingCode, int width, int height) {
         try {
             QRCodeWriter qrCodeWriter = new QRCodeWriter();
-            String content = DEFAULT_CONTENT_PREFIX + bookingCode;
+            String content = bookingCode;
 
             BitMatrix bitMatrix = qrCodeWriter.encode(
                     content,
