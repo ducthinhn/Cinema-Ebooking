@@ -17,13 +17,12 @@ export function useBooking() {
   // ── Step navigation ───────────────────────────────────────────────────────
   const currentStep = ref(1)
 
-   function goToStep(step: number) {
+  function goToStep(step: number) {
     if (step < currentStep.value) {
-      // Xoá dữ liệu của các bước lớn hơn step
-      if (step <= 4) appliedCoupon.value = null
-      if (step <= 3) selectedCombos.value = []
-      if (step <= 3) selectedSeats.value = []
-      if (step <= 1) {
+      if (step < 5) appliedCoupon.value = null
+      if (step < 4) selectedCombos.value = []
+      if (step < 3) selectedSeats.value = []
+      if (step < 2) {
         selectedShowtime.value = null
         selectedMovie.value = null
       }

@@ -17,14 +17,14 @@ import java.util.Map;
 @Service
 public class QRCodeServiceImpl implements QRCodeService {
 
+
     @Override
     public byte[] generateQRCode(String bookingCode, int width, int height) {
         try {
             QRCodeWriter qrCodeWriter = new QRCodeWriter();
-            String content = bookingCode;
 
             BitMatrix bitMatrix = qrCodeWriter.encode(
-                    content,
+                    bookingCode,
                     BarcodeFormat.QR_CODE,
                     width,
                     height,

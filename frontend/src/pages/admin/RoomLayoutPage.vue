@@ -235,6 +235,21 @@
             </div>
         </div>
     </Teleport>
+    <Teleport to="body">
+        <div v-if="isApplying"
+            class="fixed inset-0 z-60 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div class="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-4 min-w-64">
+                <svg class="animate-spin size-8 text-blue-500" viewBox="0 0 24 24" fill="none">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                </svg>
+                <div class="text-center">
+                    <p class="font-semibold text-slate-800">Đang áp dụng thay đổi...</p>
+                    <p class="text-sm text-slate-500 mt-1">Vui lòng không đóng trang này</p>
+                </div>
+            </div>
+        </div>
+    </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -287,6 +302,7 @@ const { selectedIds, toggleSeat, toggleCouple, clearSelection, initDragSelect } 
 
 const {
     applyError,
+    isApplying,
     groupedChangeList,
     pendingSeatIds,
     previewLayout,

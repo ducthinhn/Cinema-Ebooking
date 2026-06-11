@@ -21,6 +21,7 @@ export const useAuthStore = defineStore('auth', () => {
         refreshToken.value = refresh
         localStorage.setItem('accessToken', access)
         localStorage.setItem('refreshToken', refresh)
+        window.dispatchEvent(new CustomEvent('auth:login', { detail: { accessToken: access } }))
     }
 
     const setLoyaltyAccount = (loyalty: LoyaltyAccountSummaryResponse | null) => {
@@ -29,20 +30,13 @@ export const useAuthStore = defineStore('auth', () => {
 
     const logout = async () => {
         try {
-            const refresh = localStorage.getItem('refreshToken')
-            if (refresh) {
-                await apiClient.post('/auth/logout', { refreshToken: refresh })
-            }
-        } catch {
-            // Luôn clear state cục bộ dù API có lỗi
+        const refresh = localStorage.getItem('refreshToken')
+        if (refresh) {
+            // Fire-and-forget — không await, không để lỗi API block việc clear state
+            apiClient.post('/auth/logout', { refreshToken: refresh }).catch(() => {})
+        }
         } finally {
-            user.value = null
-            accessToken.value = null
-            refreshToken.value = null
-            loyaltyAccount.value = null
-            localStorage.removeItem('accessToken')
-            localStorage.removeItem('refreshToken')
-            delete apiClient.defaults.headers.common.Authorization;
+        clearLocalState()
         }
     }
 
@@ -83,6 +77,38 @@ export const useAuthStore = defineStore('auth', () => {
         }
     }
 
+    const fetchMe = async () => {
+        try {
+        const response = await userApi.getMe(accessToken.value)
+        user.value = response
+        } catch {
+        // Nếu fetchMe fail (token vừa được refresh nhưng user không tồn tại), clear state
+        clearLocalState()
+        }
+    }
+
+    const setTokens = (access: string, refresh: string) => {
+        accessToken.value = access
+        refreshToken.value = refresh
+        localStorage.setItem('accessToken', access)
+        localStorage.setItem('refreshToken', refresh)
+    }
+
+    const _clearStateOnly = () => {
+        user.value = null
+        accessToken.value = null
+        refreshToken.value = null
+        loyaltyAccount.value = null
+        localStorage.removeItem('accessToken')
+        localStorage.removeItem('refreshToken')
+        delete apiClient.defaults.headers.common.Authorization
+    }
+
+    const clearLocalState = () => {
+        _clearStateOnly()
+        window.dispatchEvent(new CustomEvent('auth:logout'))
+    }
+
     return {
         user,
         accessToken,
@@ -90,6 +116,7 @@ export const useAuthStore = defineStore('auth', () => {
         loyaltyAccount,
         setAuth,
         setLoyaltyAccount,
+        setTokens,
         logout,
         isLoggedIn,
         isAdmin,
@@ -98,6 +125,8 @@ export const useAuthStore = defineStore('auth', () => {
         updateLoyalty,
         refreshUserProfile,
         refreshLoyaltyAccount,
+        fetchMe,
+        _clearStateOnly, clearLocalState,
     }
 },{
     persist: {

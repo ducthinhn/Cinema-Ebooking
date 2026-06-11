@@ -1,4 +1,3 @@
-// src/composables/booking/useShowtimeSwitcher.ts
 import { computed, watch } from 'vue'
 import { useShowtimes } from '@/composables/useShowtimes'
 import { getDateKeyVN } from '@/utils/dateFormat'
@@ -18,10 +17,15 @@ export function useShowtimeSwitcher(booking: any) {
         const current = currentShowtime.value
         if (!current) return otherShowtimesRaw.value
 
-        const hasCurrent = otherShowtimesRaw.value.some(st => st.id === current.id)
+        // ✅ Chỉ lấy các suất chiếu của cùng phim
+        const sameMovieShowtimes = otherShowtimesRaw.value.filter(
+            st => st.movieId === current.movieId
+        )
+
+        const hasCurrent = sameMovieShowtimes.some(st => st.id === current.id)
         const merged = hasCurrent
-            ? otherShowtimesRaw.value
-            : [current, ...otherShowtimesRaw.value]
+            ? sameMovieShowtimes
+            : [current, ...sameMovieShowtimes]
 
         return [...merged].sort(
             (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
@@ -36,15 +40,13 @@ export function useShowtimeSwitcher(booking: any) {
         } else {
             selectedCinemaId.value = null
             selectedDate.value = ''
-            otherShowtimesRaw.value = []
+            otherShowtimesRaw.value = []  // ⚠️ xem ghi chú bên dưới
         }
     }, { immediate: true })
 
     const changeShowtime = (newShowtime: any) => {
         if (!newShowtime) return
-        
         if (newShowtime.id === currentShowtime.value?.id) return
-
         booking.selectedShowtime.value = newShowtime
         booking.selectedSeats.value = []
     }

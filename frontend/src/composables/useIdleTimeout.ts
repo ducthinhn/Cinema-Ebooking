@@ -5,7 +5,7 @@ const IDLE_MINUTES = 14      // Bao nhiêu phút không hoạt động thì hi�
 const WARNING_SECONDS = 60     // Đếm ngược bao nhiêu giây trước khi logout
 
 // Các event coi là "user đang hoạt động"
-const ACTIVE_EVENTS = ['click', 'keydown', 'touchstart']
+const ACTIVE_EVENTS = ['click', 'keydown', 'touchstart', 'mousemove', 'scroll']
 
 export function useIdleTimeout(onLogout: () => void) {
     const showWarning = ref(false)
@@ -58,7 +58,9 @@ export function useIdleTimeout(onLogout: () => void) {
 
     // ── Lifecycle ────────────────────────────────────────────────
     onMounted(() => {
-        ACTIVE_EVENTS.forEach(e => window.addEventListener(e, resetTimer))
+         ACTIVE_EVENTS.forEach(e =>
+            window.addEventListener(e, resetTimer, { passive: true })
+        )
         resetTimer() // bắt đầu đếm ngay khi mount
     })
 

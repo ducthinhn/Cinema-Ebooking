@@ -45,21 +45,23 @@ public class OrphanSeatValidator {
     public void validate(
             List<ShowtimeSeat> allSeats,
             Long coupleTypeId,
-            Set<Long> proposedSeatIds,
+            List<Long> proposedSeatIds,
             Long currentUserId,
             Set<Long> currentUserLockedSeatIds
     ) {
         // 1. Tính tập "taken" trước khi user chọn (baseline)
-        Set<Long> baseTaken = allSeats.stream()
+        Set<Long> baseTakenByOthers = allSeats.stream()
                 .filter(s -> isTakenByOther(s, currentUserId, currentUserLockedSeatIds))
                 .map(s -> s.getId().getValue())
                 .collect(Collectors.toSet());
 
         // 2. Orphan tồn tại sẵn trước khi user chọn bất kỳ ghế nào
-        Set<Long> orphansBefore = findOrphanIds(allSeats, coupleTypeId, baseTaken);
+        Set<Long> takenBefore = new HashSet<>(baseTakenByOthers);
+        takenBefore.addAll(currentUserLockedSeatIds);
+        Set<Long> orphansBefore = findOrphanIds(allSeats, coupleTypeId, takenBefore);
 
         // 3. Orphan sau khi áp dụng selection
-        Set<Long> takenAfter = new HashSet<>(baseTaken);
+        Set<Long> takenAfter = new HashSet<>(takenBefore);
         takenAfter.addAll(proposedSeatIds);
         Set<Long> orphansAfter = findOrphanIds(allSeats, coupleTypeId, takenAfter);
 

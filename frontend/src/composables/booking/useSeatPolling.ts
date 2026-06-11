@@ -11,26 +11,27 @@ export function useSeatPolling(
 ) {
   const isPolling = ref(false)
   let timerId: ReturnType<typeof setInterval> | null = null
+  let destroyed = false
 
     async function poll() {
         const showtimeId = booking.selectedShowtime.value?.id
         if (!showtimeId) return
         if (document.hidden) return
 
-        try {
-            isPolling.value = true
-            if (import.meta.env.DEV) console.log('[Polling] fetching...')
-            const fresh = await showtimeApi.getSeatMap(showtimeId)
-            rawLayout.value = fresh
-            if (import.meta.env.DEV) console.log('[Polling] updated')
-        } catch (err) {
-            if (import.meta.env.DEV) console.warn('[Polling] error', err)
-        } finally {
-            isPolling.value = false
-        }
+      try {
+        isPolling.value = true
+        const fresh = await showtimeApi.getSeatMap(showtimeId)
+        if (destroyed) return  // ← check lại sau await vì async
+        rawLayout.value = fresh
+      } catch (err) {
+        if (import.meta.env.DEV) console.warn('[Polling] error', err)
+      } finally {
+        if (!destroyed) isPolling.value = false
+      }
     }
 
   function startPolling() {
+    if (destroyed) return
     stopPolling()
     timerId = setInterval(poll, POLL_INTERVAL_MS)
   }
@@ -47,10 +48,14 @@ export function useSeatPolling(
   )
 
   // Pause khi tab bị ẩn (tiết kiệm request)
-  const handleVisibility = () => document.hidden ? stopPolling() : startPolling()
+  const handleVisibility = () => {
+    if (destroyed) return  // ← listener còn đó nhưng không làm gì
+    document.hidden ? stopPolling() : startPolling()
+  }
   document.addEventListener('visibilitychange', handleVisibility)
 
   onUnmounted(() => {
+    destroyed = true
     stopPolling()
     document.removeEventListener('visibilitychange', handleVisibility)
   })

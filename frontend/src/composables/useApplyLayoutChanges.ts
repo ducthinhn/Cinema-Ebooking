@@ -27,6 +27,7 @@ export function useApplyLayoutChanges(
 ) {
   const { changes, addChange, removeChange, clearAll, hasChanges: hasSeatChanges, changeList } = usePendingChanges()
   const applyError = ref<MappedError | null>(null)
+  const isApplying = ref(false) 
 
   function findSeatById(seatId: number): SeatResponse | undefined {
     if (!layout.value) return undefined
@@ -259,6 +260,7 @@ export function useApplyLayoutChanges(
       newStatus: change.newStatus,
       newSeatTypeId: change.newSeatTypeId,
     }))
+    isApplying.value = true  
     try {
       console.log('Applying changes:', selectedRoomType?.value, updates)
       await layoutApi.updateLayoutSeats(roomId, {
@@ -275,6 +277,8 @@ export function useApplyLayoutChanges(
         ? err
         : { globalErrors: [err?.message || 'Cập nhật thất bại'] }
       applyError.value = mapped
+    } finally {
+      isApplying.value = false        
     }
   }
 
@@ -289,5 +293,6 @@ export function useApplyLayoutChanges(
     hasChanges,
     changeList,
     applyAllChanges,
+    isApplying,
   }
 }

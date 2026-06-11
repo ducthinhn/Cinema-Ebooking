@@ -40,7 +40,6 @@ onMounted(async () => {
         sessionStorage.removeItem('returned_from_payment')
         sessionStorage.removeItem('failed_payment_showtimeId')
         auth.refreshLoyaltyAccount()
-        auth
     } else if (queryStatus === 'cancel') {
         status.value = 'cancel'
         errorMessage.value = 'Bạn đã huỷ giao dịch thanh toán.'

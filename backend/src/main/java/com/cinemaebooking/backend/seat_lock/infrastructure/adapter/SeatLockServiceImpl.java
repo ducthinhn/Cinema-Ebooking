@@ -21,10 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -167,10 +164,11 @@ public class SeatLockServiceImpl implements SeatLockService {
         // Assumption: tất cả ghế đôi trong layout dùng cùng 1 seatTypeId (đúng với thiết kế hiện tại)
         // Nếu layout không có ghế đôi → null → validator skip couple logic
         Long coupleTypeId = fullLayoutEntities.stream()
-                .filter(e -> e.getCoupleGroudId() != null)
-                .map(ShowtimeSeatJpaEntity::getSeatTypeId)
-                .findFirst()
-                .orElse(null);
+            .filter(this::isRealCoupleSeat)           // ← Filter quan trọng
+            .map(ShowtimeSeatJpaEntity::getSeatTypeId)
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElse(null);
 
         // Query existing locks của current user cho showtime này
         // Những ghế này KHÔNG được tính là "taken" trong orphan validation
@@ -180,9 +178,14 @@ public class SeatLockServiceImpl implements SeatLockService {
                 .map(lock -> lock.getShowtimeSeat().getId())
                 .collect(Collectors.toSet());
 
-        Set<Long> proposedIds = proposedSeatIds.stream().collect(Collectors.toSet());
+        orphanSeatValidator.validate(fullLayout, coupleTypeId, proposedSeatIds, userId, currentUserLockedSeatIds);
+    }
 
-        orphanSeatValidator.validate(fullLayout, coupleTypeId, proposedIds, userId, currentUserLockedSeatIds);
+    private boolean isRealCoupleSeat(ShowtimeSeatJpaEntity seat) {
+        if (seat.getSeatTypeId() == null) {
+            return false;
+        }
+        return seat.getSeatTypeId().equals(3L);
     }
 
     // ================== RELEASE USER LOCKS ==================
