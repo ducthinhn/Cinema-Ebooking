@@ -841,52 +841,55 @@
                 <div class="section-number">1</div>
                 <div class="section-title-group">
                     <div class="section-title">KIẾN TRÚC HỆ THỐNG LAI (HYBRID SYSTEM)</div>
-                    <div class="section-subtitle">Layer 1: Hard Rules &nbsp;|&nbsp; Layer 2: Machine Learning Pipeline &nbsp;|&nbsp; Double-layered protection</div>
+                    <div class="section-subtitle">Layer 1: Hard Rules &nbsp;|&nbsp; Layer 2: ML Pipeline &nbsp;|&nbsp; Hard Rules ưu tiên tuyệt đối</div>
                 </div>
             </div>
             <div class="section-body">
 
                 <p class="lead">
-                    Hệ thống phân loại bình luận phim sử dụng kiến trúc lai hai tầng (Hybrid Architecture) nhằm đạt độ chính xác tối đa và giảm thiểu tối đa các trường hợp bỏ sót (false negative) — tức là những bình luận độc hại hoặc chứa spoiler vẫn lọt qua cửa kiểm duyệt.
+                    Hệ thống phân loại bình luận phim sử dụng kiến trúc lai hai tầng (Hybrid Architecture). Tầng 1 (Hard Rules) có <strong>quyền ưu tiên tuyệt đối</strong> — nếu phát hiện từ khóa nhạy cảm, hệ thống trả kết quả ngay mà <strong>không gọi mô hình ML</strong>. Tầng 2 (ML Pipeline) chỉ được kích hoạt khi bình luận vượt qua tầng cứng.
                 </p>
 
                 <h3>Tầng 1 — Bộ Lọc Cứng (Hard Rules / Keyword Filtering)</h3>
                 <p>
-                    Tầng đầu tiên hoạt động theo nguyên tắc <strong>đối sánh từ khóa chính xác</strong> (exact keyword matching) trên bình luận đã được chuẩn hóa. Nếu bình luận chứa bất kỳ từ nào trong danh sách <code>_SPOILER_KEYWORDS</code> hoặc <code>_BAD_WORDS</code>, hệ thống sẽ tự động đưa ra quyết định <strong>mà không cần gọi mô hình ML</strong>.
+                    Tầng đầu tiên hoạt động theo nguyên tắc <strong>đối sánh từ khóa chính xác</strong> (exact keyword matching) trên bình luận đã được chuẩn hóa. Nếu bình luận rỗng, quá ngắn/dài, chứa spam, hoặc có mật độ từ tục ≥ 60%, hệ thống trả <code>valid=False</code> và bị REJECTED. Nếu có từ trong danh sách <code>_SPOILER_KEYWORDS</code>, hệ thống trả kết quả cảnh báo mà không gọi ML.
                 </p>
 
                 <div class="code-block">
-<code><span class="keyword">def</span> <span class="function">_check_hard_rules</span>(comment: str) -> <span class="keyword">tuple</span>[<span class="keyword">bool</span>, <span class="keyword">str</span>]:
-    normalized = normalize_text(comment)
-    <span class="keyword">for</span> keyword <span class="keyword">in</span> _SPOILER_KEYWORDS:
-        <span class="keyword">if</span> keyword <span class="keyword">in</span> normalized:
-            <span class="keyword">return</span> <span class="keyword">True</span>, <span class="string">"SPOILER_WARNING"</span>
-    <span class="keyword">for</span> word <span class="keyword">in</span> _BAD_WORDS:
-        <span class="keyword">if</span> word <span class="keyword">in</span> normalized:
-            <span class="keyword">return</span> <span class="keyword">True</span>, <span class="string">"REJECTED"</span>
-    <span class="keyword">return</span> <span class="keyword">False</span>, <span class="string">""</span></code>
+<code><span class="keyword">def</span> <span class="function">_determine_decision</span>(layer1_valid: <span class="keyword">bool</span>, is_spoiler: <span class="keyword">bool</span>,
+                        spoiler_conf: <span class="keyword">float</span>, profanity_ratio: <span class="keyword">float</span>) -> str:
+    <span class="comment"># Layer 1 trả valid=False → reject ngay (spam, rỗng, quá ngắn/dài, ≥60% từ tục)</span>
+    <span class="keyword">if not</span> layer1_valid:
+        <span class="keyword">return</span> <span class="string">"REJECTED"</span>
+    <span class="comment"># Spoiler keyword → cảnh báo</span>
+    <span class="keyword">if</span> is_spoiler <span class="keyword">and</span> spoiler_conf >= <span class="number">0.6</span>:
+        <span class="keyword">return</span> <span class="string">"SPOILER_WARNING"</span>
+    <span class="comment"># Tỷ lệ từ tục ≥ 60% → reject</span>
+    <span class="keyword">if</span> profanity_ratio >= <span class="number">0.6</span>:
+        <span class="keyword">return</span> <span class="string">"REJECTED"</span>
+    <span class="keyword">return</span> <span class="string">"APPROVED"</span></code>
                 </div>
 
                 <div class="highlight-box">
-                    <strong>Ưu điểm của tầng cứng:</strong> Tốc độ xử lý gần như tức thì (O(n) với n là số từ khóa), không tiêu tốn tài nguyên GPU, và hoạt động tuyệt đối ổn định với các từ đã biết trước. Tầng này đóng vai trò như một "lưới lọc thô" — loại bỏ nhanh chóng các trường hợp hiển nhiên.
+                    <strong>Ưu điểm của tầng cứng:</strong> Xử lý O(n) với n là số từ khóa, không tiêu tốn tài nguyên GPU, hoạt động ổn định tuyệt đối với từ đã biết. Đây là "lưới lọc thô" — loại bỏ nhanh các trường hợp hiển nhiên, giảm tải cho tầng ML.
                 </div>
 
                 <h3>Tầng 2 — Pipeline Học Máy (ML Pipeline)</h3>
                 <p>
-                    Nếu bình luận vượt qua tầng cứng (không chứa từ khóa nhạy cảm), nó sẽ được đưa vào Pipeline Học Máy gồm ba thành phần liên hoàn:
+                    Khi bình luận vượt qua tầng cứng (không chứa từ khóa nhạy cảm), nó được xử lý qua ba bước liên hoàn:
                 </p>
 
                 <div class="step-flow">
                     <div class="step-item active">
                         <div class="step-number-circle">1</div>
                         <div class="step-name">Chuẩn hóa</div>
-                        <div class="step-desc">Lowercase, loại bỏ dấu câu, tách từ (word segmentation)</div>
+                        <div class="step-desc">Lowercase, loại dấu câu, tách từ (word segmentation)</div>
                     </div>
                     <div class="step-arrow">→</div>
                     <div class="step-item active">
                         <div class="step-number-circle">2</div>
                         <div class="step-name">TF-IDF</div>
-                        <div class="step-desc">Vector hóa văn bản thành ma trận 15000 chiều thưa</div>
+                        <div class="step-desc">Vector hóa văn bản thành ma trận thưa 15000 chiều</div>
                     </div>
                     <div class="step-arrow">→</div>
                     <div class="step-item active">
@@ -896,26 +899,26 @@
                     </div>
                 </div>
 
-                <h3>Logic Quyết Định Tổng Hợp (<code>_determine_decision</code>)</h3>
+                <h3>Quy Tắc Quyết Định Tổng Hợp (<code>_determine_decision</code>)</h3>
                 <p>
-                    Hàm <code>_determine_decision</code> nhận đầu ra từ Hard Rules và ML Model, sau đó áp dụng bộ quy tắc ưu tiên để đưa ra quyết định cuối cùng. Hard Rules có quyền ưu tiên cao hơn ML Model vì nó chính xác tuyệt đối với từ khóa đã biết.
+                    Hàm <code>_determine_decision</code> nhận kết quả từ Hard Rules và ML Model, sau đó áp dụng quy tắc ưu tiên: <strong>Hard Rules luôn override ML</strong>. Nguyên tắc: nếu Hard Rules phát hiện từ khóa nhạy cảm → trả kết quả cứng ngay; nếu không → dùng kết quả ML (với ngưỡng tin cậy).
                 </p>
 
                 <div class="code-block">
 <code><span class="keyword">def</span> <span class="function">_determine_decision</span>(hard_triggered: <span class="keyword">bool</span>, hard_label: str,
                         ml_label: str, ml_confidence: <span class="keyword">float</span>) -> str:
-    <span class="comment"># Bước 1: Hard Rules có quyền vetos cao nhất</span>
+    <span class="comment"># Hard Rules ưu tiên tuyệt đối</span>
     <span class="keyword">if</span> hard_triggered:
         <span class="keyword">if</span> hard_label == <span class="string">"REJECTED"</span>:
-            <span class="keyword">return</span> <span class="string">"REJECTED"</span>      <span class="comment"># Ngôn ngữ thô tục → Từ chối</span>
+            <span class="keyword">return</span> <span class="string">"REJECTED"</span>       <span class="comment"># BAD_WORDS → Từ chối ngay</span>
         <span class="keyword">elif</span> hard_label == <span class="string">"SPOILER_WARNING"</span>:
-            <span class="keyword">return</span> <span class="string">"SPOILER_WARNING"</span> <span class="comment"># Từ khóa spoiler → Cảnh báo</span>
+            <span class="keyword">return</span> <span class="string">"SPOILER_WARNING"</span> <span class="comment"># SPOILER_KEYWORDS → Cảnh báo</span>
 
-    <span class="comment"># Bước 2: Không có Hard Rules → Dùng kết quả ML Model</span>
+    <span class="comment"># Không có Hard Rules → Dùng kết quả ML</span>
     <span class="keyword">if</span> ml_confidence >= CONFIDENCE_THRESHOLD:
         <span class="keyword">return</span> ml_label
     <span class="keyword">else</span>:
-        <span class="keyword">return</span> <span class="string">"REVIEW"</span>           <span class="comment"># Độ tin cậy thấp → Gửi duyệt tay</span></code>
+        <span class="keyword">return</span> <span class="string">"REVIEW"</span>          <span class="comment"># Tự tin thấp → Gửi duyệt tay</span></code>
                 </div>
 
                 <div class="decision-flow">
@@ -924,33 +927,147 @@
                         <div class="decision-arrow">→</div>
                         <div class="decision-node" style="background:#2b6cb0;color:white;flex:1.5;border-radius:0">Layer 1: Hard Rules</div>
                         <div class="decision-arrow">→</div>
-                        <div class="decision-node node-rejected">REJECTED<br><small style="font-size:10px">BAD_WORDS</small></div>
+                        <div class="decision-node node-rejected">REJECTED<br><small style="font-size:10px">valid=False</small></div>
+                    </div>
+                    <div style="text-align:center;font-size:11px;color:#718096;margin:4px 0">valid=True, từ tục ≥ 60%?</div>
+                    <div class="decision-row">
+                        <div class="decision-node node-start">Có</div>
+                        <div class="decision-arrow">→</div>
+                        <div class="decision-node node-rejected">REJECTED<br><small style="font-size:10px">Tỷ lệ từ tục ≥ 60%</small></div>
+                    </div>
+                    <div style="text-align:center;font-size:11px;color:#718096;margin:4px 0">Spoiler keyword?</div>
+                    <div class="decision-row">
+                        <div class="decision-node node-start">Có, conf≥0.6</div>
+                        <div class="decision-arrow">→</div>
+                        <div class="decision-node node-warning">SPOILER_WARNING</div>
                     </div>
                     <div style="text-align:center;font-size:11px;color:#718096;margin:4px 0">Không khớp từ khóa?</div>
                     <div class="decision-row">
                         <div class="decision-node node-start">Tiếp tục</div>
                         <div class="decision-arrow">→</div>
-                        <div class="decision-node" style="background:#2b6cb0;color:white;flex:1.5;border-radius:0">Layer 2: ML Model</div>
+                        <div class="decision-node" style="background:#2b6cb0;color:white;flex:1.5;border-radius:0">Layer 2: ML Pipeline</div>
                         <div class="decision-arrow">→</div>
-                        <div class="decision-node node-approved">APPROVED<br><small style="font-size:10px">Tự tin cao</small></div>
+                        <div class="decision-node node-approved" style="flex:0.8">TÍCH CỰC<br><small style="font-size:10px">Nhãn 0</small></div>
                         <div class="decision-arrow">→</div>
-                        <div class="decision-node node-warning">REVIEW<br><small style="font-size:10px">Tự tin thấp</small></div>
+                        <div class="decision-node" style="background:#c53030;color:white;flex:0.8">TIÊU CỰC<br><small style="font-size:10px">Nhãn 1</small></div>
+                        <div class="decision-arrow">→</div>
+                        <div class="decision-node" style="background:#b7791f;color:white;flex:0.8">SPOILER<br><small style="font-size:10px">Nhãn 2</small></div>
+                    </div>
+                    <div style="text-align:center;font-size:11px;color:#718096;margin:4px 0">Xác suất cao nhất ≥ ngưỡng?</div>
+                    <div class="decision-row">
+                        <div class="decision-node node-start">Đủ tin cậy</div>
+                        <div class="decision-arrow">→</div>
+                        <div class="decision-node node-approved">APPROVED<br><small style="font-size:10px">Nhãn ML được chấp nhận</small></div>
+                    </div>
+                    <div style="text-align:center;font-size:11px;color:#718096;margin:4px 0">Không đủ tin cậy?</div>
+                    <div class="decision-row">
+                        <div class="decision-node node-start">Thấp</div>
+                        <div class="decision-arrow">→</div>
+                        <div class="decision-node node-warning">REVIEW<br><small style="font-size:10px">Gửi duyệt tay</small></div>
                     </div>
                 </div>
 
                 <div class="success-box">
-                    <strong>Kết quả cuối cùng</strong> có 3 trạng thái: <strong>APPROVED</strong> (chấp nhận — bình luận tích cực hoặc trung tính), <strong>REJECTED</strong> (từ chối — chứa ngôn ngữ thô tục), và <strong>SPOILER_WARNING</strong> (cảnh báo spoiler).
+                    <strong>Kết quả cuối cùng</strong> gồm 4 trạng thái: <strong>REJECTED</strong> (từ chối — ngôn ngữ thô tục), <strong>SPOILER_WARNING</strong> (cảnh báo spoiler), <strong>APPROVED</strong> (chấp nhận — nhãn ML đủ tin cậy), và <strong>REVIEW</strong> (gửi duyệt tay — xác suất ML thấp hơn ngưỡng).
                 </div>
             </div>
         </article>
 
-        <!-- ===== SECTION 2: TF-IDF ===== -->
+        <!-- ===== SECTION 2: NORMALIZATION PIPELINE ===== -->
         <article class="section-card">
             <div class="section-header">
                 <div class="section-number">2</div>
                 <div class="section-title-group">
+                    <div class="section-title">TẦNG CHUẨN HÓA — TỪ VĂN BẢN THÔ ĐẾN VĂN BẢN SẠCH (LAYER 1 PIPELINE)</div>
+                    <div class="section-subtitle">normalize_layer1() &nbsp;|&nbsp; Hard Rules quyết định REJECT/APPROVED ngay tại đây</div>
+                </div>
+            </div>
+            <div class="section-body">
+
+                <p class="lead">
+                    Trước khi bình luận được đưa vào tầng ML (Layer 2), nó phải vượt qua các bước chuẩn hóa trong hàm <code>normalize_layer1()</code>. Kết quả đầu ra là một object <code>Layer1Result</code> chứa toàn bộ metadata để quyết định cuối cùng.
+                </p>
+
+                <div class="step-flow">
+                    <div class="step-item active">
+                        <div class="step-number-circle">1</div>
+                        <div class="step-name">Strip &amp; Guard</div>
+                        <div class="step-desc">Loại null bytes, kiểm tra độ dài 3–2000 ký tự</div>
+                    </div>
+                    <div class="step-arrow">→</div>
+                    <div class="step-item active">
+                        <div class="step-number-circle">2</div>
+                        <div class="step-name">Unicode NFC</div>
+                        <div class="step-desc">Chuẩn hóa ký tự Unicode về dạng NFC</div>
+                    </div>
+                    <div class="step-arrow">→</div>
+                    <div class="step-item active">
+                        <div class="step-number-circle">3</div>
+                        <div class="step-name">Strip URL</div>
+                        <div class="step-desc">Xóa toàn bộ http/https/www URL</div>
+                    </div>
+                    <div class="step-arrow">→</div>
+                    <div class="step-item active">
+                        <div class="step-number-circle">4</div>
+                        <div class="step-name">Strip Special</div>
+                        <div class="step-desc">Giữ chữ cái, số, dấu câu cơ bản, ký tự tiếng Việt</div>
+                    </div>
+                    <div class="step-arrow">→</div>
+                    <div class="step-item active">
+                        <div class="step-number-circle">5</div>
+                        <div class="step-name">Collapse Repeat</div>
+                        <div class="step-desc">"vlll" → "vl", "haaaaha" → "haha"</div>
+                    </div>
+                </div>
+
+                <div class="step-flow">
+                    <div class="step-item active">
+                        <div class="step-number-circle">6</div>
+                        <div class="step-name">Normalize Space</div>
+                        <div class="step-desc">Collapse nhiều khoảng trắng → 1 khoảng trắng</div>
+                    </div>
+                    <div class="step-arrow">→</div>
+                    <div class="step-item active">
+                        <div class="step-number-circle">7</div>
+                        <div class="step-name">Spam Detect</div>
+                        <div class="step-desc">Regex 11 pattern — spam → REJECT ngay</div>
+                    </div>
+                    <div class="step-arrow">→</div>
+                    <div class="step-item active">
+                        <div class="step-number-circle">8</div>
+                        <div class="step-name">Teencode</div>
+                        <div class="step-desc">"ko"→"không", "x"→"xem", "p"→"phim"...</div>
+                    </div>
+                    <div class="step-arrow">→</div>
+                    <div class="step-item active">
+                        <div class="step-number-circle">9</div>
+                        <div class="step-name">Tokenize</div>
+                        <div class="step-desc">Tách token + đối sánh từ tục (exact + fuzzy Levenshtein)</div>
+                    </div>
+                    <div class="step-arrow">→</div>
+                    <div class="step-item active">
+                        <div class="step-number-circle">10</div>
+                        <div class="step-name">Profanity Check</div>
+                        <div class="step-desc">Tỷ lệ từ tục ≥ 60% → REJECT ngay</div>
+                    </div>
+                    <div class="step-arrow">→</div>
+                    <div class="step-item active">
+                        <div class="step-number-circle">11</div>
+                        <div class="step-name">Normalize Sentences</div>
+                        <div class="step-desc">Viết hoa đầu câu, chuẩn hóa khoảng trắng sau dấu câu</div>
+                    </div>
+                </div>
+
+            </div>
+        </article>
+
+        <!-- ===== SECTION 3: TF-IDF ===== -->
+        <article class="section-card">
+            <div class="section-header">
+                <div class="section-number">3</div>
+                <div class="section-title-group">
                     <div class="section-title">BẢN CHẤT &amp; CÔNG THỨC CỦA CỖ MÁY SỐ HÓA (TF-IDF VECTORIZER)</div>
-                    <div class="section-subtitle">TfidfVectorizer — fit · transform · fit_transform &nbsp;|&nbsp; Ma trận thưa n × 15.000</div>
+                    <div class="section-subtitle">TfidfVectorizer — fit · transform &nbsp;|&nbsp; Ma trận thưa n × 15.000</div>
                 </div>
             </div>
             <div class="section-body">
@@ -959,7 +1076,7 @@
                     <code>TfidfVectorizer</code> là thành phần số hóa văn bản đầu tiên trong pipeline. Nó chuyển đổi mỗi câu bình luận thành một vector số thực 15.000 chiều — vector này chính là "dấu vân tay số" (numeric fingerprint) mà mô hình Logistic Regression sử dụng để phân loại.
                 </p>
 
-                <h3>3 Bước Thực Thi Của TfidfVectorizer</h3>
+                <h3>2 Bước Thực Thi Của TfidfVectorizer</h3>
 
                 <div class="step-flow">
                     <div class="step-item active">
@@ -972,12 +1089,6 @@
                         <div class="step-number-circle">2</div>
                         <div class="step-name">TRANSFORM</div>
                         <div class="step-desc">Chuyển câu mới thành vector 15.000 chiều dựa trên vocabulary đã học</div>
-                    </div>
-                    <div class="step-arrow">→</div>
-                    <div class="step-item active">
-                        <div class="step-number-circle">3</div>
-                        <div class="step-name">FIT_TRANSFORM</div>
-                        <div class="step-desc">Kết hợp cả hai: vừa học vocabulary vừa biến đổi dữ liệu huấn luyện</div>
                     </div>
                 </div>
 
@@ -1028,7 +1139,7 @@
                 </p>
 
                 <hr class="section-divider">
-                <h3>Ví Dụ Cụ Thể: "Phim này quá hay, xuất_sắc xuất_sắc!"</h3>
+                <h3>Ví Dụ Cụ Thể: "Phim này quá hay, xuất sắc xuất sắc!"</h3>
 
                 <div class="walkthrough">
                     <div class="walkthrough-title">🔢 Bước 1 — Tách từ (Word Segmentation)</div>
@@ -1037,39 +1148,39 @@
                     <div class="calc-row">
                         <div class="calc-step">
                             <div class="calc-step-label">Câu gốc</div>
-                            "Phim này quá hay, xuất_sắc xuất_sắc!"
+                            "Phim này quá hay, xuất sắc xuất sắc!"
                         </div>
                         <div class="calc-step">
                             <div class="calc-step-label">Sau tách từ</div>
-                            ["phim", "này", "quá", "hay", "xuất_sắc", "xuất_sắc"]
+                            ["phim", "này", "quá", "hay", "xuất sắc", "xuất sắc"]
                         </div>
                     </div>
 
                     <div class="highlight-box">
-                        <strong>Tại sao tách từ quan trọng với tiếng Việt?</strong> Nếu không tách, "xuất_sắc" bị xử lý thành 3 token rời rạc "xuất", "_", "sắc" → vector biểu diễn sai hoàn toàn ý nghĩa. Tương tự, "khúc_cuối" (twist/cliffhanger) phải là một token duy nhất để giữ nguyên ý nghĩa. Việc tách đúng giúp TF-IDF học được rằng "xuất_sắc" là một đặc trưng mạnh của nhãn TÍCH CỰC, còn "khúc_cuối" gợi ý nhãn SPOILER.
+                        <strong>Tại sao tách từ quan trọng với tiếng Việt?</strong> Nếu không tách, "xuất sắc" bị xử lý thành 3 token rời rạc "xuất", "_", "sắc" → vector biểu diễn sai hoàn toàn ý nghĩa. Tương tự, "khúc_cuối" (twist/cliffhanger) phải là một token duy nhất để giữ nguyên ý nghĩa. Việc tách đúng giúp TF-IDF học được rằng "xuất sắc" là một đặc trưng mạnh của nhãn TÍCH CỰC, còn "khúc_cuối" gợi ý nhãn SPOILER.
                     </div>
 
-                    <div class="walkthrough-title">🔢 Bước 2 — Tính TF cho "xuất_sắc"</div>
+                    <div class="walkthrough-title">🔢 Bước 2 — Tính TF cho "xuất sắc"</div>
                     <div class="calc-row">
                         <div class="calc-step">
                             <div class="calc-step-label">Công thức</div>
-                            TF(xuất_sắc, d) = số lần xuất_sắc / tổng số từ
+                            TF(xuất sắc, d) = số lần xuất sắc / tổng số từ
                         </div>
                         <div class="calc-step">
                             <div class="calc-step-label">Thế số</div>
-                            TF(xuất_sắc) = 2 / 6 ≈ 0.333
+                            TF(xuất sắc) = 2 / 6 ≈ 0.333
                         </div>
                         <div class="calc-step">
                             <div class="calc-step-label">Kết quả</div>
-                            TF(xuất_sắc) = 0.333
+                            TF(xuất sắc) = 0.333
                         </div>
                     </div>
 
-                    <div class="walkthrough-title">🔢 Bước 3 — Tính IDF cho "xuất_sắc" (giả định)</div>
+                    <div class="walkthrough-title">🔢 Bước 3 — Tính IDF cho "xuất sắc" (giả định)</div>
                     <div class="calc-row">
                         <div class="calc-step">
                             <div class="calc-step-label">Giả định</div>
-                            N = 10.000 câu, n_t = 50 câu chứa "xuất_sắc"
+                            N = 10.000 câu, n_t = 50 câu chứa "xuất sắc"
                         </div>
                         <div class="calc-step">
                             <div class="calc-step-label">Thế số</div>
@@ -1098,9 +1209,9 @@
                     </div>
 
                     <div class="result-highlight">
-                        <div style="font-size:13px;color:#718096;margin-bottom:6px">VECTOR ĐẦU VÀO CHO "xuất_sắc"</div>
+                        <div style="font-size:13px;color:#718096;margin-bottom:6px">VECTOR ĐẦU VÀO CHO "xuất sắc"</div>
                         <div style="font-size:24px;font-weight:900;color:#319795">
-                            TF-IDF("xuất_sắc") ≈ <strong>2.10</strong>
+                            TF-IDF("xuất sắc") ≈ <strong>2.10</strong>
                         </div>
                         <div style="font-size:12px;color:#718096;margin-top:6px">
                             Giá trị này được ghi vào vị trí thứ j trong vector 15.000 chiều của câu này
@@ -1115,7 +1226,7 @@
                     <div class="vocab-chip">tuyệt_vời [j=0]</div>
                     <div class="vocab-chip">kinh_dị [j=1]</div>
                     <div class="vocab-chip">buồn [j=2]</div>
-                    <div class="vocab-chip active">xuất_sắc [j=3]</div>
+                    <div class="vocab-chip active">xuất sắc [j=3]</div>
                     <div class="vocab-chip">không [j=4]</div>
                     <div class="vocab-chip">hay [j=5]</div>
                     <div class="vocab-chip">dở [j=6]</div>
@@ -1133,10 +1244,10 @@
             </div>
         </article>
 
-        <!-- ===== SECTION 3: LOGISTIC REGRESSION ===== -->
+        <!-- ===== SECTION 4: LOGISTIC REGRESSION ===== -->
         <article class="section-card">
             <div class="section-header">
-                <div class="section-number">3</div>
+                <div class="section-number">4</div>
                 <div class="section-title-group">
                     <div class="section-title">BỘ NÃO HỒI QUY LOGISTIC ĐA LỚP (MULTINOMIAL LOGISTIC REGRESSION)</div>
                     <div class="section-subtitle">3 Judges · Softmax · Cross-Entropy &nbsp;|&nbsp; 15.000 chiều đầu vào → 3 nhãn đầu ra</div>
@@ -1305,8 +1416,8 @@
                         <div style="font-size:24px;font-weight:900;color:#e53e3e">
                             Nhãn dự đoán: <strong>1 — NEGATIVE</strong>
                         </div>
-                        <div style="font-size:13px;color:#c53030;margin-top:6px">
-                            Độ tự tin: 99.99999% &nbsp;|&nbsp; Quyết định: REJECTED
+                        <div style="font-size:13px;color:#c53030;margin-top:6px;text-align:center">
+                            Độ tự tin: 99.999%
                         </div>
                     </div>
 
@@ -1314,37 +1425,13 @@
                         <strong>Phân tích kết quả:</strong> Mô hình gần như tuyệt đối tự tin rằng "Phim dở tệ, phí tiền" thuộc nhãn NEGATIVE (1). Các từ "dở" và "tệ" có trọng số dương cực lớn với nhãn 1 và trọng số âm cực lớn với nhãn 0, tạo ra chênh lệch logit \( z_1 - z_0 \approx 31.57 \) đơn vị — một khoảng cách "an toàn" rất lớn. Đây là lý do mô hình hoạt động xuất sắc với các câu có ý kiến rõ ràng.
                     </div>
                 </div>
-
-                <h3>Huấn Luyện: Vòng Lặp 1000 Iterations — Gradient Descent</h3>
-                <p>
-                    Tham số <code>max_iter=1000</code> kiểm soát số lần vòng lặp Gradient Descent tối đa. Mỗi iteration gồm 3 bước: (1) tính dự đoán hiện tại với các trọng số hiện có, (2) tính gradient — hướng và độ lớn cần điều chỉnh trọng số để giảm sai số, (3) cập nhật trọng số theo hướng giảm Sai số (Loss). Loss function được sử dụng là Cross-Entropy cho bài toán đa lớp.
-                </p>
-
-                <div class="math-block">
-                    <div class="math-label">Cross-Entropy Loss (hàm mất mát)</div>
-                    $$\mathcal{L}(W) = -\sum_{d=1}^{N} \sum_{k=0}^{2} y_{d,k} \cdot \log\left( \hat{y}_{d,k} \right)$$
-                </div>
-
-                <p>
-                    Trong đó: \( N \) là số câu huấn luyện, \( y_{d,k} \) là nhãn thực (0 hoặc 1), \( \hat{y}_{d,k} \) là xác suất dự đoán của nhãn \( k \) cho câu \( d \). Mục tiêu của Gradient Descent là tìm ma trận \( W^* \) sao cho \( \mathcal{L}(W^*) \) đạt giá trị nhỏ nhất có thể.
-                </p>
-
-                <div class="code-block">
-<code><span class="comment"># Minh họa spirit của quá trình gradient descent</span>
-<span class="keyword">for</span> iteration <span class="keyword">in</span> <span class="function">range</span>(<span class="number">1000</span>):        <span class="comment"># max_iter=1000</span>
-    y_pred = softmax(W @ X_train.T + b)  <span class="comment"># Dự đoán với W hiện tại</span>
-    loss = cross_entropy(y_pred, y_true)  <span class="comment"># Tính sai số</span>
-    gradient = X_train.T @ (y_pred - y_true) <span class="comment"># Lan truyền ngược</span>
-    W = W - learning_rate * gradient       <span class="comment"># Cập nhật trọng số ↓ sai số</span>
-    <span class="keyword">if</span> loss_converged: <span class="keyword">break</span>              <span class="comment"># Dừng sớm nếu đã hội tụ</span></code>
-                </div>
             </div>
         </article>
 
-        <!-- ===== SECTION 4: HYPERPARAMETERS TABLE ===== -->
+        <!-- ===== SECTION 5: HYPERPARAMETERS TABLE ===== -->
         <article class="section-card">
             <div class="section-header">
-                <div class="section-number">4</div>
+                <div class="section-number">5</div>
                 <div class="section-title-group">
                     <div class="section-title">GIẢI MÃ THAM SỐ CODE PIPELINE</div>
                     <div class="section-subtitle">Hyperparameters &nbsp;|&nbsp; Sklearn API Reference &nbsp;|&nbsp; Engineering Rationale</div>

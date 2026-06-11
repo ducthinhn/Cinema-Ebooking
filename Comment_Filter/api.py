@@ -62,14 +62,14 @@ def _determine_decision(
     layer1_valid: bool,
     is_spoiler: bool,
     spoiler_conf: float,
-    profanity_count: int,
+    profanity_ratio: float,
     sentiment: str,
 ) -> str:
     if not layer1_valid:
         return "REJECTED"
     if is_spoiler and spoiler_conf >= 0.6:
         return "SPOILER_WARNING"
-    if profanity_count >= 3:
+    if profanity_ratio >= 0.6:
         return "REJECTED"
     return "APPROVED"
 
@@ -109,7 +109,7 @@ async def analyze_comment(req: AnalyzeRequest):
         layer1_valid=layer1_result.valid,
         is_spoiler=spoiler,
         spoiler_conf=spoiler_conf,
-        profanity_count=layer1_result.profanity_count,
+        profanity_ratio=layer1_result.profanity_ratio,
         sentiment=sentiment_label,
     )
 

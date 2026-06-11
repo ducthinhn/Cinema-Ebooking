@@ -311,7 +311,7 @@ def normalize_layer1(text: str) -> Layer1Result:
     profanity_ratio = profanity_count / max(word_count, 1)
 
     # 10. Từ chối nếu mật độ từ tục quá cao
-    if profanity_ratio >= 0.5 and profanity_count >= 3:
+    if profanity_ratio >= 0.6:
         return _reject(
             start, cleaned_text, "HIGH_PROFANITY",
             censored_words=censored_words,
