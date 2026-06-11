@@ -1,0 +1,1493 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Báo Cáo Kỹ Thuật: Mô Hình Phân Loại Cảm Xúc & Spoiler Bình Luận Phim</title>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$']],
+                processEscapes: true,
+                extensions: ['tex/ams.js', 'tex/amsmath.js', 'tex/bbox.js', 'tex/action.js', 'config/tex2jax.js']
+            },
+            options: { ignoreHtmlClass: 'tex2jax_ignore' },
+            startup: {
+                ready: () => MathJax.startup.defaultReady()
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        :root {
+            --deep-blue: #1a365d;
+            --teal: #319795;
+            --teal-light: #81e6d9;
+            --charcoal: #2d3748;
+            --gray-bg: #f4f7f6;
+            --gray-border: #e2e8f0;
+            --white: #ffffff;
+            --text-muted: #718096;
+            --positive-color: #38a169;
+            --negative-color: #e53e3e;
+            --spoiler-color: #d69e2e;
+            --code-bg: #1e2a3a;
+            --code-text: #e2e8f0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+            color: var(--charcoal);
+            background: var(--gray-bg);
+            line-height: 1.7;
+            font-size: 15px;
+        }
+
+        /* ===== HEADER BANNER ===== */
+        .header-banner {
+            background: linear-gradient(135deg, var(--deep-blue) 0%, #234e82 50%, #1a365d 100%);
+            color: var(--white);
+            padding: 60px 40px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header-banner::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(ellipse at 30% 50%, rgba(49,151,149,0.15) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        .header-banner::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--teal), var(--teal-light), var(--teal));
+        }
+
+        .header-badge {
+            display: inline-block;
+            background: rgba(49,151,149,0.2);
+            border: 1px solid rgba(49,151,149,0.4);
+            color: var(--teal-light);
+            padding: 4px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+        }
+
+        .header-banner h1 {
+            font-size: 28px;
+            font-weight: 800;
+            line-height: 1.3;
+            margin-bottom: 16px;
+            letter-spacing: -0.5px;
+        }
+
+        .header-banner .subtitle {
+            font-size: 14px;
+            color: rgba(255,255,255,0.7);
+            max-width: 700px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        .header-meta {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 24px;
+            flex-wrap: wrap;
+        }
+
+        .header-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: rgba(255,255,255,0.6);
+        }
+
+        .header-meta-item .icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(49,151,149,0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        /* ===== MAIN CONTAINER ===== */
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        /* ===== SECTION CARDS ===== */
+        .section-card {
+            background: var(--white);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.04);
+            margin-bottom: 28px;
+            overflow: hidden;
+            page-break-inside: avoid;
+        }
+
+        .section-header {
+            background: linear-gradient(90deg, var(--deep-blue), #234e82);
+            color: var(--white);
+            padding: 20px 28px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .section-number {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            background: rgba(49,151,149,0.3);
+            border: 1px solid rgba(129,230,217,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 800;
+            flex-shrink: 0;
+        }
+
+        .section-title-group {
+            flex: 1;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+
+        .section-subtitle {
+            font-size: 12px;
+            color: rgba(255,255,255,0.6);
+            margin-top: 2px;
+            font-weight: 400;
+        }
+
+        .section-body {
+            padding: 28px;
+        }
+
+        /* ===== TEXT STYLES ===== */
+        p {
+            margin-bottom: 14px;
+            color: var(--charcoal);
+        }
+
+        p:last-child {
+            margin-bottom: 0;
+        }
+
+        .lead {
+            font-size: 16px;
+            color: var(--text-muted);
+            line-height: 1.8;
+        }
+
+        h3 {
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--deep-blue);
+            margin: 28px 0 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--gray-border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        h3:first-child {
+            margin-top: 0;
+        }
+
+        h3::before {
+            content: '';
+            width: 4px;
+            height: 18px;
+            background: var(--teal);
+            border-radius: 2px;
+            flex-shrink: 0;
+        }
+
+        h4 {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--charcoal);
+            margin: 20px 0 10px;
+        }
+
+        .highlight-box {
+            background: linear-gradient(135deg, #ebf8ff 0%, #e6fffa 100%);
+            border-left: 4px solid var(--teal);
+            border-radius: 0 8px 8px 0;
+            padding: 16px 20px;
+            margin: 16px 0;
+            page-break-inside: avoid;
+        }
+
+        .warning-box {
+            background: linear-gradient(135deg, #fffaf0 0%, #fefce8 100%);
+            border-left: 4px solid var(--spoiler-color);
+            border-radius: 0 8px 8px 0;
+            padding: 16px 20px;
+            margin: 16px 0;
+            page-break-inside: avoid;
+        }
+
+        .danger-box {
+            background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
+            border-left: 4px solid var(--negative-color);
+            border-radius: 0 8px 8px 0;
+            padding: 16px 20px;
+            margin: 16px 0;
+            page-break-inside: avoid;
+        }
+
+        .success-box {
+            background: linear-gradient(135deg, #f0fff4 0%, #c6f6d5 100%);
+            border-left: 4px solid var(--positive-color);
+            border-radius: 0 8px 8px 0;
+            padding: 16px 20px;
+            margin: 16px 0;
+            page-break-inside: avoid;
+        }
+
+        /* ===== CODE BLOCKS ===== */
+        .code-block {
+            background: var(--code-bg);
+            border-radius: 8px;
+            padding: 18px 22px;
+            margin: 14px 0;
+            overflow-x: auto;
+            page-break-inside: avoid;
+        }
+
+        .code-block code {
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 13px;
+            color: var(--code-text);
+            white-space: pre;
+            line-height: 1.7;
+        }
+
+        .code-block .keyword { color: #7fdbca; font-weight: 600; }
+        .code-block .string { color: #eddb8d; }
+        .code-block .comment { color: #6272a4; font-style: italic; }
+        .code-block .function { color: #50fa7b; }
+        .code-block .number { color: #bd93f9; }
+        .code-block .operator { color: #ff79c6; }
+
+        /* ===== MATH BLOCKS ===== */
+        .math-block {
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            border: 1px solid var(--gray-border);
+            border-radius: 8px;
+            padding: 20px 24px;
+            margin: 16px 0;
+            text-align: center;
+            overflow-x: auto;
+            page-break-inside: avoid;
+        }
+
+        .math-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--teal);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 10px;
+        }
+
+        .inline-math {
+            background: #f7fafc;
+            border: 1px solid var(--gray-border);
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 14px;
+        }
+
+        /* ===== TABLES ===== */
+        .table-wrapper {
+            overflow-x: auto;
+            margin: 16px 0;
+            border-radius: 8px;
+            border: 1px solid var(--gray-border);
+            page-break-inside: avoid;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        thead {
+            background: linear-gradient(135deg, var(--deep-blue), #234e82);
+            color: var(--white);
+        }
+
+        th {
+            padding: 14px 16px;
+            text-align: left;
+            font-weight: 700;
+            font-size: 13px;
+            letter-spacing: 0.3px;
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--gray-border);
+            vertical-align: top;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tbody tr:nth-child(even) {
+            background: #fafbfc;
+        }
+
+        tbody tr:hover {
+            background: #f0fff4;
+        }
+
+        .param-name {
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--deep-blue);
+        }
+
+        .param-value {
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 13px;
+            color: var(--negative-color);
+            font-weight: 700;
+        }
+
+        /* ===== STEP FLOW ===== */
+        .step-flow {
+            display: flex;
+            align-items: stretch;
+            gap: 0;
+            margin: 20px 0;
+            page-break-inside: avoid;
+        }
+
+        .step-item {
+            flex: 1;
+            text-align: center;
+            padding: 16px 12px;
+            background: #f7fafc;
+            border: 2px solid var(--gray-border);
+            border-radius: 8px;
+            position: relative;
+        }
+
+        .step-item.active {
+            background: #e6fffa;
+            border-color: var(--teal);
+        }
+
+        .step-number-circle {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--deep-blue);
+            color: var(--white);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 800;
+            margin: 0 auto 8px;
+        }
+
+        .step-item.active .step-number-circle {
+            background: var(--teal);
+        }
+
+        .step-name {
+            font-weight: 700;
+            font-size: 13px;
+            color: var(--deep-blue);
+            margin-bottom: 4px;
+        }
+
+        .step-desc {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .step-arrow {
+            display: flex;
+            align-items: center;
+            padding: 0 8px;
+            color: var(--teal);
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        /* ===== DECISION FLOW ===== */
+        .decision-flow {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin: 20px 0;
+            page-break-inside: avoid;
+        }
+
+        .decision-row {
+            display: flex;
+            align-items: center;
+            gap: 0;
+        }
+
+        .decision-node {
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 14px;
+            flex: 1;
+            text-align: center;
+        }
+
+        .node-start {
+            background: linear-gradient(135deg, var(--deep-blue), #234e82);
+            color: var(--white);
+            border-radius: 8px 0 0 8px;
+        }
+
+        .node-approved {
+            background: var(--positive-color);
+            color: var(--white);
+        }
+
+        .node-rejected {
+            background: var(--negative-color);
+            color: var(--white);
+        }
+
+        .node-warning {
+            background: var(--spoiler-color);
+            color: var(--white);
+            border-radius: 0 8px 8px 0;
+        }
+
+        .decision-arrow {
+            padding: 0 10px;
+            color: var(--text-muted);
+            font-size: 16px;
+        }
+
+        .decision-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-align: center;
+            margin-top: 2px;
+        }
+
+        /* ===== CLASS CARDS ===== */
+        .class-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+            margin: 16px 0;
+            page-break-inside: avoid;
+        }
+
+        .class-card {
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .class-card.positive {
+            background: linear-gradient(135deg, #f0fff4, #c6f6d5);
+            border: 2px solid var(--positive-color);
+        }
+
+        .class-card.negative {
+            background: linear-gradient(135deg, #fff5f5, #fed7d7);
+            border: 2px solid var(--negative-color);
+        }
+
+        .class-card.spoiler {
+            background: linear-gradient(135deg, #fffaf0, #feebc8);
+            border: 2px solid var(--spoiler-color);
+        }
+
+        .class-value {
+            font-size: 28px;
+            font-weight: 900;
+            line-height: 1;
+        }
+
+        .class-card.positive .class-value { color: var(--positive-color); }
+        .class-card.negative .class-value { color: var(--negative-color); }
+        .class-card.spoiler .class-value { color: #b7791f; }
+
+        .class-name {
+            font-weight: 700;
+            font-size: 13px;
+            margin-top: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .class-card.positive .class-name { color: #276749; }
+        .class-card.negative .class-name { color: #c53030; }
+        .class-card.spoiler .class-name { color: #b7791f; }
+
+        /* ===== EXAMPLE WALKTHROUGH ===== */
+        .walkthrough {
+            background: #fafbfc;
+            border: 1px solid var(--gray-border);
+            border-radius: 10px;
+            padding: 24px;
+            margin: 16px 0;
+            page-break-inside: avoid;
+        }
+
+        .walkthrough-title {
+            font-weight: 800;
+            font-size: 15px;
+            color: var(--deep-blue);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .calc-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+
+        .calc-step {
+            background: var(--white);
+            border: 1px solid var(--gray-border);
+            border-radius: 6px;
+            padding: 10px 14px;
+            flex: 1;
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 13px;
+        }
+
+        .calc-step-label {
+            font-family: system-ui, sans-serif;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--teal);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .result-highlight {
+            background: #e6fffa;
+            border: 2px solid var(--teal);
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin: 16px 0;
+            text-align: center;
+            page-break-inside: avoid;
+        }
+
+        .result-highlight.negative {
+            background: #fff5f5;
+            border-color: var(--negative-color);
+        }
+
+        .prob-bar {
+            display: flex;
+            height: 28px;
+            border-radius: 6px;
+            overflow: hidden;
+            margin: 8px 0;
+        }
+
+        .prob-bar-segment {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--white);
+            transition: width 0.3s;
+        }
+
+        /* ===== VOCAB GRID ===== */
+        .vocab-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 8px;
+            margin: 14px 0;
+            page-break-inside: avoid;
+        }
+
+        .vocab-chip {
+            background: #edf2f7;
+            border: 1px solid var(--gray-border);
+            border-radius: 6px;
+            padding: 8px 12px;
+            text-align: center;
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--deep-blue);
+        }
+
+        .vocab-chip.active {
+            background: #e6fffa;
+            border-color: var(--teal);
+            color: var(--teal);
+        }
+
+        /* ===== TAG ===== */
+        .tag {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .tag-alg { background: #ebf8ff; color: #2b6cb0; }
+        .tag-math { background: #faf5ff; color: #6b46c1; }
+        .tag-note { background: #fffaf0; color: #b7791f; }
+
+        /* ===== DIVIDER ===== */
+        .section-divider {
+            border: none;
+            border-top: 1px solid var(--gray-border);
+            margin: 24px 0;
+        }
+
+        /* ===== FOOTER ===== */
+        .footer {
+            text-align: center;
+            padding: 32px 20px;
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+
+        .footer-line {
+            width: 60px;
+            height: 3px;
+            background: var(--teal);
+            border-radius: 2px;
+            margin: 0 auto 16px;
+        }
+
+        /* ===== PRINT STYLES ===== */
+        @media print {
+            @page {
+                size: A4;
+                margin: 15mm 15mm 15mm 18mm;
+            }
+
+            body {
+                background: white;
+                font-size: 12pt;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .section-card {
+                box-shadow: none;
+                border: 1px solid #ccc;
+                margin-bottom: 16px;
+            }
+
+            .header-banner {
+                background: var(--deep-blue) !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+                padding: 30px 30px;
+            }
+
+            thead {
+                background: var(--deep-blue) !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .code-block {
+                background: #1e2a3a !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .step-item {
+                border-color: #ccc !important;
+            }
+
+            .math-block {
+                background: #f7fafc !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .section-header {
+                background: var(--deep-blue) !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .page-break-before {
+                page-break-before: always;
+            }
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 640px) {
+            .class-cards {
+                grid-template-columns: 1fr;
+            }
+
+            .step-flow {
+                flex-direction: column;
+            }
+
+            .step-arrow {
+                transform: rotate(90deg);
+                padding: 4px 0;
+            }
+
+            .header-banner h1 {
+                font-size: 20px;
+            }
+
+            .header-meta {
+                gap: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ===== HEADER BANNER ===== -->
+    <header class="header-banner">
+        <div class="header-badge">Technical Report &amp; Cheat Sheet</div>
+        <h1>BÁO CÁO KỸ THUẬT<br>MÔ HÌNH PHÂN LOẠI CẢM XÚC &amp; SPOILER BÌNH LUẬN PHIM</h1>
+        <p class="subtitle">
+            Vietnamese Movie Comment Sentiment &amp; Spoiler Classifier — Hybrid System Architecture:
+            Hard Rules + TF-IDF Vectorizer + Multinomial Logistic Regression
+        </p>
+        <div class="header-meta">
+            <div class="header-meta-item">
+                <div class="icon">📊</div>
+                <span>Machine Learning Pipeline</span>
+            </div>
+            <div class="header-meta-item">
+                <div class="icon">🧠</div>
+                <span>Transformer-less Model</span>
+            </div>
+            <div class="header-meta-item">
+                <div class="icon">🇻🇳</div>
+                <span>Vietnamese NLP</span>
+            </div>
+            <div class="header-meta-item">
+                <div class="icon">📐</div>
+                <span>TF-IDF + Softmax</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+
+        <!-- ===== SECTION 1: HYBRID SYSTEM ARCHITECTURE ===== -->
+        <article class="section-card">
+            <div class="section-header">
+                <div class="section-number">1</div>
+                <div class="section-title-group">
+                    <div class="section-title">KIẾN TRÚC HỆ THỐNG LAI (HYBRID SYSTEM)</div>
+                    <div class="section-subtitle">Layer 1: Hard Rules &nbsp;|&nbsp; Layer 2: Machine Learning Pipeline &nbsp;|&nbsp; Double-layered protection</div>
+                </div>
+            </div>
+            <div class="section-body">
+
+                <p class="lead">
+                    Hệ thống phân loại bình luận phim sử dụng kiến trúc lai hai tầng (Hybrid Architecture) nhằm đạt độ chính xác tối đa và giảm thiểu tối đa các trường hợp bỏ sót (false negative) — tức là những bình luận độc hại hoặc chứa spoiler vẫn lọt qua cửa kiểm duyệt.
+                </p>
+
+                <h3>Tầng 1 — Bộ Lọc Cứng (Hard Rules / Keyword Filtering)</h3>
+                <p>
+                    Tầng đầu tiên hoạt động theo nguyên tắc <strong>đối sánh từ khóa chính xác</strong> (exact keyword matching) trên bình luận đã được chuẩn hóa. Nếu bình luận chứa bất kỳ từ nào trong danh sách <code>_SPOILER_KEYWORDS</code> hoặc <code>_BAD_WORDS</code>, hệ thống sẽ tự động đưa ra quyết định <strong>mà không cần gọi mô hình ML</strong>.
+                </p>
+
+                <div class="code-block">
+<code><span class="keyword">def</span> <span class="function">_check_hard_rules</span>(comment: str) -> <span class="keyword">tuple</span>[<span class="keyword">bool</span>, <span class="keyword">str</span>]:
+    normalized = normalize_text(comment)
+    <span class="keyword">for</span> keyword <span class="keyword">in</span> _SPOILER_KEYWORDS:
+        <span class="keyword">if</span> keyword <span class="keyword">in</span> normalized:
+            <span class="keyword">return</span> <span class="keyword">True</span>, <span class="string">"SPOILER_WARNING"</span>
+    <span class="keyword">for</span> word <span class="keyword">in</span> _BAD_WORDS:
+        <span class="keyword">if</span> word <span class="keyword">in</span> normalized:
+            <span class="keyword">return</span> <span class="keyword">True</span>, <span class="string">"REJECTED"</span>
+    <span class="keyword">return</span> <span class="keyword">False</span>, <span class="string">""</span></code>
+                </div>
+
+                <div class="highlight-box">
+                    <strong>Ưu điểm của tầng cứng:</strong> Tốc độ xử lý gần như tức thì (O(n) với n là số từ khóa), không tiêu tốn tài nguyên GPU, và hoạt động tuyệt đối ổn định với các từ đã biết trước. Tầng này đóng vai trò như một "lưới lọc thô" — loại bỏ nhanh chóng các trường hợp hiển nhiên.
+                </div>
+
+                <h3>Tầng 2 — Pipeline Học Máy (ML Pipeline)</h3>
+                <p>
+                    Nếu bình luận vượt qua tầng cứng (không chứa từ khóa nhạy cảm), nó sẽ được đưa vào Pipeline Học Máy gồm ba thành phần liên hoàn:
+                </p>
+
+                <div class="step-flow">
+                    <div class="step-item active">
+                        <div class="step-number-circle">1</div>
+                        <div class="step-name">Chuẩn hóa</div>
+                        <div class="step-desc">Lowercase, loại bỏ dấu câu, tách từ (word segmentation)</div>
+                    </div>
+                    <div class="step-arrow">→</div>
+                    <div class="step-item active">
+                        <div class="step-number-circle">2</div>
+                        <div class="step-name">TF-IDF</div>
+                        <div class="step-desc">Vector hóa văn bản thành ma trận 15000 chiều thưa</div>
+                    </div>
+                    <div class="step-arrow">→</div>
+                    <div class="step-item active">
+                        <div class="step-number-circle">3</div>
+                        <div class="step-name">Logistic Regression</div>
+                        <div class="step-desc">Phân loại đa lớp (3 nhãn) bằng Softmax</div>
+                    </div>
+                </div>
+
+                <h3>Logic Quyết Định Tổng Hợp (<code>_determine_decision</code>)</h3>
+                <p>
+                    Hàm <code>_determine_decision</code> nhận đầu ra từ Hard Rules và ML Model, sau đó áp dụng bộ quy tắc ưu tiên để đưa ra quyết định cuối cùng. Hard Rules có quyền ưu tiên cao hơn ML Model vì nó chính xác tuyệt đối với từ khóa đã biết.
+                </p>
+
+                <div class="code-block">
+<code><span class="keyword">def</span> <span class="function">_determine_decision</span>(hard_triggered: <span class="keyword">bool</span>, hard_label: str,
+                        ml_label: str, ml_confidence: <span class="keyword">float</span>) -> str:
+    <span class="comment"># Bước 1: Hard Rules có quyền vetos cao nhất</span>
+    <span class="keyword">if</span> hard_triggered:
+        <span class="keyword">if</span> hard_label == <span class="string">"REJECTED"</span>:
+            <span class="keyword">return</span> <span class="string">"REJECTED"</span>      <span class="comment"># Ngôn ngữ thô tục → Từ chối</span>
+        <span class="keyword">elif</span> hard_label == <span class="string">"SPOILER_WARNING"</span>:
+            <span class="keyword">return</span> <span class="string">"SPOILER_WARNING"</span> <span class="comment"># Từ khóa spoiler → Cảnh báo</span>
+
+    <span class="comment"># Bước 2: Không có Hard Rules → Dùng kết quả ML Model</span>
+    <span class="keyword">if</span> ml_confidence >= CONFIDENCE_THRESHOLD:
+        <span class="keyword">return</span> ml_label
+    <span class="keyword">else</span>:
+        <span class="keyword">return</span> <span class="string">"REVIEW"</span>           <span class="comment"># Độ tin cậy thấp → Gửi duyệt tay</span></code>
+                </div>
+
+                <div class="decision-flow">
+                    <div class="decision-row">
+                        <div class="decision-node node-start">Bình luận mới</div>
+                        <div class="decision-arrow">→</div>
+                        <div class="decision-node" style="background:#2b6cb0;color:white;flex:1.5;border-radius:0">Layer 1: Hard Rules</div>
+                        <div class="decision-arrow">→</div>
+                        <div class="decision-node node-rejected">REJECTED<br><small style="font-size:10px">BAD_WORDS</small></div>
+                    </div>
+                    <div style="text-align:center;font-size:11px;color:#718096;margin:4px 0">Không khớp từ khóa?</div>
+                    <div class="decision-row">
+                        <div class="decision-node node-start">Tiếp tục</div>
+                        <div class="decision-arrow">→</div>
+                        <div class="decision-node" style="background:#2b6cb0;color:white;flex:1.5;border-radius:0">Layer 2: ML Model</div>
+                        <div class="decision-arrow">→</div>
+                        <div class="decision-node node-approved">APPROVED<br><small style="font-size:10px">Tự tin cao</small></div>
+                        <div class="decision-arrow">→</div>
+                        <div class="decision-node node-warning">REVIEW<br><small style="font-size:10px">Tự tin thấp</small></div>
+                    </div>
+                </div>
+
+                <div class="success-box">
+                    <strong>Kết quả cuối cùng</strong> có 3 trạng thái: <strong>APPROVED</strong> (chấp nhận — bình luận tích cực hoặc trung tính), <strong>REJECTED</strong> (từ chối — chứa ngôn ngữ thô tục), và <strong>SPOILER_WARNING</strong> (cảnh báo spoiler).
+                </div>
+            </div>
+        </article>
+
+        <!-- ===== SECTION 2: TF-IDF ===== -->
+        <article class="section-card">
+            <div class="section-header">
+                <div class="section-number">2</div>
+                <div class="section-title-group">
+                    <div class="section-title">BẢN CHẤT &amp; CÔNG THỨC CỦA CỖ MÁY SỐ HÓA (TF-IDF VECTORIZER)</div>
+                    <div class="section-subtitle">TfidfVectorizer — fit · transform · fit_transform &nbsp;|&nbsp; Ma trận thưa n × 15.000</div>
+                </div>
+            </div>
+            <div class="section-body">
+
+                <p class="lead">
+                    <code>TfidfVectorizer</code> là thành phần số hóa văn bản đầu tiên trong pipeline. Nó chuyển đổi mỗi câu bình luận thành một vector số thực 15.000 chiều — vector này chính là "dấu vân tay số" (numeric fingerprint) mà mô hình Logistic Regression sử dụng để phân loại.
+                </p>
+
+                <h3>3 Bước Thực Thi Của TfidfVectorizer</h3>
+
+                <div class="step-flow">
+                    <div class="step-item active">
+                        <div class="step-number-circle">1</div>
+                        <div class="step-name">FIT</div>
+                        <div class="step-desc">Quét toàn bộ tập huấn luyện, xây danh sách từ vựng 15.000 từ phổ biến nhất</div>
+                    </div>
+                    <div class="step-arrow">→</div>
+                    <div class="step-item active">
+                        <div class="step-number-circle">2</div>
+                        <div class="step-name">TRANSFORM</div>
+                        <div class="step-desc">Chuyển câu mới thành vector 15.000 chiều dựa trên vocabulary đã học</div>
+                    </div>
+                    <div class="step-arrow">→</div>
+                    <div class="step-item active">
+                        <div class="step-number-circle">3</div>
+                        <div class="step-name">FIT_TRANSFORM</div>
+                        <div class="step-desc">Kết hợp cả hai: vừa học vocabulary vừa biến đổi dữ liệu huấn luyện</div>
+                    </div>
+                </div>
+
+                <div class="highlight-box">
+                    <strong>Ma trận đầu ra:</strong> Một câu bình luận được biểu diễn dưới dạng ma trận thưa (sparse matrix) kích thước \( n \times 15.000 \), trong đó \( n \) là số câu trong tập dữ liệu. Mỗi hàng tương ứng một câu, mỗi cột tương ứng một từ trong vocabulary. Giá trị phần lớn các phần tử là <strong>0</strong> vì mỗi câu chỉ chứa vài chục từ trong tổng số 15.000 từ — đây là lý do cấu trúc Sparse Matrix tiết kiệm bộ nhớ cực kỳ hiệu quả.
+                </div>
+
+                <h3>Công Thức 1: Term Frequency (TF) — Tần Suất Từ</h3>
+                <p>
+                    TF đo lường mức độ quan trọng của một từ <em>t</em> trong một câu cụ thể <em>d</em>. Công thức cơ bản sử dụng là tần suất chuẩn hóa (raw count chia cho tổng số từ trong câu) để tránh thiên lệch đối với các câu dài.
+                </p>
+
+                <div class="math-block">
+                    <div class="math-label">Công thức Term Frequency</div>
+                    $$TF(t, d) = \frac{\mathrm{Số\ lần\ từ}\ t\ \mathrm{xuất\ hiện\ trong\ câu}\ d}{\mathrm{Tổng\ số\ từ\ ghép\ của\ câu}\ d}$$
+                </div>
+
+                <p>
+                    Trong đó: \( t \) là từ cần tính TF, \( d \) là câu bình luận cụ thể. Nếu từ "hay" xuất hiện 3 lần trong câu 20 từ → \( TF = \frac{3}{20} = 0.15 \).
+                </p>
+
+                <h3>Công Thức 2: Smooth Inverse Document Frequency (IDF) — Tần Suất Nghịch Văn Bản</h3>
+                <p>
+                    IDF đo lường mức độ "hiếm gặp" của một từ trên toàn bộ tập văn bản. Từ xuất hiện trong hầu hết mọi câu (như "phim", "xem") sẽ có IDF thấp và đóng góp ít ý nghĩa phân biệt. Ngược lại, từ hiếm gặp có IDF cao và mang nhiều ý nghĩa phân loại hơn.
+                </p>
+
+                <div class="math-block">
+                    <div class="math-label">Công thức Smooth IDF</div>
+                    $$IDF(t, D) = \ln \left( \frac{1 + N}{1 + n_t} \right) + 1$$
+                </div>
+
+                <div class="warning-box">
+                    <strong>Lý do kỹ thuật của việc cộng "+1":</strong> Nếu một từ không xuất hiện trong bất kỳ văn bản nào trong tập huấn luyện (\( n_t = 0 \)), thì \( \ln\left(\frac{N}{0}\right) \) sẽ tiến tới vô cùng, khiến TF-IDF = vô cùng — mô hình bị phá hủy. Phép +1 bảo vệ mẫu số khỏi giá trị 0 (<strong>zero-division protection</strong>), đồng thời <strong>bảo toàn điểm TF gốc</strong> cho từ chưa từng thấy trong tập huấn luyện: \( IDF = \ln\left(\frac{N+1}{1}\right) + 1 = \ln(N+1) + 1 > 0 \). Ngoài ra, +1 còn ngăn chặn hiện tượng <strong>TF weight annihilation</strong> — tức là điểm TF không bị triệt tiêu về 0 khi IDF có giá trị cực lớn.
+                </div>
+
+                <p>
+                    Trong đó: \( N \) = tổng số văn bản trong tập huấn luyện, \( n_t \) = số văn bản chứa từ \( t \). Hàm <code>np.log</code> (logarit tự nhiên) được sử dụng mặc định trong sklearn.
+                </p>
+
+                <h3>Công Thức 3: TF-IDF Tổng Hợp</h3>
+                <div class="math-block">
+                    <div class="math-label">Công thức TF-IDF Score</div>
+                    $$\mathrm{TF\text{-}IDF}(t, d) = TF(t, d) \times IDF(t, D)$$
+                </div>
+
+                <p>
+                    Điểm TF-IDF của từ <em>t</em> trong câu <em>d</em> = tần suất từ đó trong câu × mức độ hiếm gặp của nó trên toàn bộ tập dữ liệu.
+                </p>
+
+                <hr class="section-divider">
+                <h3>Ví Dụ Cụ Thể: "Phim này quá hay, xuất_sắc xuất_sắc!"</h3>
+
+                <div class="walkthrough">
+                    <div class="walkthrough-title">🔢 Bước 1 — Tách từ (Word Segmentation)</div>
+                    <p>Trước khi tính TF-IDF, câu cần được tách từ bằng thư viện <code>underthesea</code>. Với tiếng Việt, việc tách từ ghép là <strong>bắt buộc</strong> vì tiếng Việt là ngôn ngữ đơn lập không có khoảng trắng giữa các từ trong cụm từ.</p>
+
+                    <div class="calc-row">
+                        <div class="calc-step">
+                            <div class="calc-step-label">Câu gốc</div>
+                            "Phim này quá hay, xuất_sắc xuất_sắc!"
+                        </div>
+                        <div class="calc-step">
+                            <div class="calc-step-label">Sau tách từ</div>
+                            ["phim", "này", "quá", "hay", "xuất_sắc", "xuất_sắc"]
+                        </div>
+                    </div>
+
+                    <div class="highlight-box">
+                        <strong>Tại sao tách từ quan trọng với tiếng Việt?</strong> Nếu không tách, "xuất_sắc" bị xử lý thành 3 token rời rạc "xuất", "_", "sắc" → vector biểu diễn sai hoàn toàn ý nghĩa. Tương tự, "khúc_cuối" (twist/cliffhanger) phải là một token duy nhất để giữ nguyên ý nghĩa. Việc tách đúng giúp TF-IDF học được rằng "xuất_sắc" là một đặc trưng mạnh của nhãn TÍCH CỰC, còn "khúc_cuối" gợi ý nhãn SPOILER.
+                    </div>
+
+                    <div class="walkthrough-title">🔢 Bước 2 — Tính TF cho "xuất_sắc"</div>
+                    <div class="calc-row">
+                        <div class="calc-step">
+                            <div class="calc-step-label">Công thức</div>
+                            TF(xuất_sắc, d) = số lần xuất_sắc / tổng số từ
+                        </div>
+                        <div class="calc-step">
+                            <div class="calc-step-label">Thế số</div>
+                            TF(xuất_sắc) = 2 / 6 ≈ 0.333
+                        </div>
+                        <div class="calc-step">
+                            <div class="calc-step-label">Kết quả</div>
+                            TF(xuất_sắc) = 0.333
+                        </div>
+                    </div>
+
+                    <div class="walkthrough-title">🔢 Bước 3 — Tính IDF cho "xuất_sắc" (giả định)</div>
+                    <div class="calc-row">
+                        <div class="calc-step">
+                            <div class="calc-step-label">Giả định</div>
+                            N = 10.000 câu, n_t = 50 câu chứa "xuất_sắc"
+                        </div>
+                        <div class="calc-step">
+                            <div class="calc-step-label">Thế số</div>
+                            IDF = ln((1+10000)/(1+50)) + 1 = ln(10001/51) + 1
+                        </div>
+                        <div class="calc-step">
+                            <div class="calc-step-label">Kết quả</div>
+                            ≈ 5.30 + 1 = 6.30
+                        </div>
+                    </div>
+
+                    <div class="walkthrough-title">🔢 Bước 4 — Tính TF-IDF cuối cùng</div>
+                    <div class="calc-row">
+                        <div class="calc-step">
+                            <div class="calc-step-label">Công thức</div>
+                            TF-IDF = TF × IDF
+                        </div>
+                        <div class="calc-step">
+                            <div class="calc-step-label">Thế số</div>
+                            = 0.333 × 6.30 ≈ 2.10
+                        </div>
+                        <div class="calc-step">
+                            <div class="calc-step-label">Kết quả</div>
+                            ≈ 2.10
+                        </div>
+                    </div>
+
+                    <div class="result-highlight">
+                        <div style="font-size:13px;color:#718096;margin-bottom:6px">VECTOR ĐẦU VÀO CHO "xuất_sắc"</div>
+                        <div style="font-size:24px;font-weight:900;color:#319795">
+                            TF-IDF("xuất_sắc") ≈ <strong>2.10</strong>
+                        </div>
+                        <div style="font-size:12px;color:#718096;margin-top:6px">
+                            Giá trị này được ghi vào vị trí thứ j trong vector 15.000 chiều của câu này
+                        </div>
+                    </div>
+                </div>
+
+                <h3>Vocabulary Mẫu Trong Không Gian 15.000 Chiều</h3>
+                <p>Mỗi từ trong tập 15.000 từ chiếm một vị trí (index) cố định trong vector. Dưới đây là một phần nhỏ minh họa:</p>
+
+                <div class="vocab-grid">
+                    <div class="vocab-chip">tuyệt_vời [j=0]</div>
+                    <div class="vocab-chip">kinh_dị [j=1]</div>
+                    <div class="vocab-chip">buồn [j=2]</div>
+                    <div class="vocab-chip active">xuất_sắc [j=3]</div>
+                    <div class="vocab-chip">không [j=4]</div>
+                    <div class="vocab-chip">hay [j=5]</div>
+                    <div class="vocab-chip">dở [j=6]</div>
+                    <div class="vocab-chip">phim [j=7]</div>
+                    <div class="vocab-chip">khúc_cuối [j=8]</div>
+                    <div class="vocab-chip">tệ [j=9]</div>
+                    <div class="vocab-chip">tuyệt [j=10]</div>
+                    <div class="vocab-chip">rùng_rợn [j=11]</div>
+                    <div class="vocab-chip">... [j=14999]</div>
+                </div>
+
+                <div class="highlight-box">
+                    <strong>Lưu ý về N-grams:</strong> Cấu hình <code>ngram_range=(1, 3)</code> cho phép vectorizer học không chỉ từng từ riêng lẻ (unigram) mà cả cụm 2 từ (bigram) và cụm 3 từ (trigram). Ví dụ: "không hay" và "quá không hay" là những cụm có ý nghĩa phân loại mạnh hơn nhiều so với các từ đơn lẻ — đây là lý do trigram được kích hoạt.
+                </div>
+            </div>
+        </article>
+
+        <!-- ===== SECTION 3: LOGISTIC REGRESSION ===== -->
+        <article class="section-card">
+            <div class="section-header">
+                <div class="section-number">3</div>
+                <div class="section-title-group">
+                    <div class="section-title">BỘ NÃO HỒI QUY LOGISTIC ĐA LỚP (MULTINOMIAL LOGISTIC REGRESSION)</div>
+                    <div class="section-subtitle">3 Judges · Softmax · Cross-Entropy &nbsp;|&nbsp; 15.000 chiều đầu vào → 3 nhãn đầu ra</div>
+                </div>
+            </div>
+            <div class="section-body">
+
+                <p class="lead">
+                    Sau khi TF-IDF chuyển câu thành vector 15.000 chiều, mô hình Multinomial Logistic Regression (còn gọi là Softmax Regression) tiếp quản nhiệm vụ phân loại. Đây là mô hình học có giám sát (supervised learning) tìm ranh giới quyết định tối ưu trong không gian 15.000 chiều để phân tách 3 vùng: Tích cực, Tiêu cực, và Spoiler.
+                </p>
+
+                <h3>3 Lớp Phân Loại (Classes)</h3>
+                <p>Mỗi bình luận được gán một trong 3 nhãn:</p>
+
+                <div class="class-cards">
+                    <div class="class-card positive">
+                        <div class="class-value">0</div>
+                        <div class="class-name">POSITIVE</div>
+                        <div style="font-size:11px;color:#276749;margin-top:4px">Tích cực, khen ngợi</div>
+                    </div>
+                    <div class="class-card negative">
+                        <div class="class-value">1</div>
+                        <div class="class-name">NEGATIVE</div>
+                        <div style="font-size:11px;color:#c53030;margin-top:4px">Tiêu cực, chê bai</div>
+                    </div>
+                    <div class="class-card spoiler">
+                        <div class="class-value">2</div>
+                        <div class="class-name">SPOILER</div>
+                        <div style="font-size:11px;color:#b7791f;margin-top:4px">Tiết lộ nội dung phim</div>
+                    </div>
+                </div>
+
+                <h3>Khái Niệm "3 Thẩm Phán" (Judges)</h3>
+                <p>
+                    Mô hình học ra 3 bộ trọng số riêng biệt — mỗi "Thẩm phán" chuyên trách một nhãn. Trong không gian 15.000 chiều, mỗi từ vựng có <em>một trọng số riêng</em> cho mỗi nhãn. Trọng số dương lớn → từ đẩy mạnh quyết định về nhãn đó. Trọng số âm lớn → từ đẩy mạnh quyết định <em>không</em> về nhãn đó.
+                </p>
+
+                <div class="math-block">
+                    <div class="math-label">Ma Trận Trọng Số W (Weights)</div>
+                    $$W \in \mathbb{R}^{3 \times 15000} = \begin{bmatrix} w_{0,1} & w_{0,2} & \cdots & w_{0,15000} \\ w_{1,1} & w_{1,2} & \cdots & w_{1,15000} \\ w_{2,1} & w_{2,2} & \cdots & w_{2,15000} \end{bmatrix}$$
+                </div>
+
+                <h3>Công Thức 1: Linear Logit Score (Điểm Tuyến Tính)</h3>
+                <p>
+                    Với mỗi nhãn \( k \), mô hình tính một điểm số tuyến tính bằng tổng có trọng số của tất cả 15.000 giá trị TF-IDF. Đây là phép nhân ma trận vector-đầu vào với ma trận trọng số.
+                </p>
+
+                <div class="math-block">
+                    <div class="math-label">Công thức Linear Logit</div>
+                    $$z_k = b_k + \sum_{i=1}^{15000} x_i \cdot w_{k,i}$$
+                </div>
+
+                <div class="highlight-box">
+                    <strong>Ý nghĩa của Bias \( b_k \):</strong> Bias (hay intercept) là hằng số cộng thêm vào mỗi nhãn. Nó đại diện cho <em>phân bố xác suất nền tảng</em> (prior class distribution) — phản ánh sự mất cân bằng dữ liệu (class imbalance). Nếu tập huấn luyện có nhiều bình luận tiêu cực hơn, bias của nhãn tiêu cực sẽ dương hơn, giúp mô hình bù đắp sự thiên lệch về dữ liệu. Ví dụ: \( b_0 = -0.5 \) nghĩa là nhãn Tích cực có xác suất nền thấp hơn mặc định.
+                </div>
+
+                <p>
+                    Trong đó: \( z_k \) là logit score cho nhãn \( k \), \( b_k \) là bias của nhãn \( k \), \( x_i \) là giá trị TF-IDF của từ thứ \( i \) (đầu vào), \( w_{k,i} \) là trọng số của từ thứ \( i \) cho nhãn \( k \).
+                </p>
+
+                <h3>Công Thức 2: Hàm Kích Hoạt Softmax</h3>
+                <p>
+                    Các logit scores \( z_0, z_1, z_2 \) là các số thực không giới hạn (−∞ đến +∞), chưa phải xác suất. Softmax "nén" chúng thành 3 giá trị xác suất có tổng = 1.0, mỗi giá trị nằm trong khoảng (0, 1).
+                </p>
+
+                <div class="math-block">
+                    <div class="math-label">Công thức Softmax Activation</div>
+                    $$P(\mathrm{Nhãn}\ k) = \frac{e^{z_k}}{e^{z_0} + e^{z_1} + e^{z_2}}$$
+                </div>
+
+                <div class="highlight-box">
+                    <strong>Tại sao dùng \( e^{z} \) (exponential)?</strong> Hàm exponential đảm bảo mọi giá trị đều dương và tạo ra sự "phân tách" rõ ràng giữa các nhãn. Nếu một nhãn có logit cao hơn đáng kể, \( e^{z} \) sẽ tạo ra sự khác biệt lũy thừa (rất lớn), khiến xác suất nhãn đó chiếm ưu thế tuyệt đối. Đây là lý do Softmax hoạt động như một "vòng loại trực tiếp" giữa 3 thẩm phán.
+                </div>
+
+                <hr class="section-divider">
+                <h3>Ví Dụ Cụ Thể: "Phim dở tệ, phí tiền"</h3>
+
+                <div class="walkthrough">
+                    <div class="walkthrough-title">🔢 Bước 1 — Vector đầu vào (TF-IDF giả định)</div>
+                    <p>Giả sử sau TF-IDF, câu "Phim dở tệ, phí tiền" được vector hóa thành. Chỉ các từ trong vocabulary có giá trị khác 0:</p>
+                    <div class="calc-row">
+                        <div class="calc-step" style="flex:2">
+                            <div class="calc-step-label">Từ có giá trị</div>
+                            x["dở"]=2.8 &nbsp;|&nbsp; x["tệ"]=3.1 &nbsp;|&nbsp; x["phí"]=1.2 &nbsp;|&nbsp; x["tiền"]=0.9 &nbsp;|&nbsp; x["phim"]=0.4
+                        </div>
+                        <div class="calc-step">
+                            <div class="calc-step-label">Còn lại 14995 chiều</div>
+                            = 0 (sparse matrix)
+                        </div>
+                    </div>
+
+                    <div class="walkthrough-title">🔢 Bước 2 — Tính Linear Logit Scores</div>
+                    <p>Giả định các trọng số w và bias b đã được huấn luyện tối ưu:</p>
+                    <div class="calc-row">
+                        <div class="calc-step">
+                            <div class="calc-step-label">Nhãn 0 — POSITIVE</div>
+                            z₀ = b₀ + 0.4(−0.3) + 2.8(−1.8) + 3.1(−2.0) + 1.2(−0.7) + 0.9(−0.5)<br>
+                            z₀ = −0.5 + (−0.12) + (−5.04) + (−6.20) + (−0.84) + (−0.45)<br>
+                            <strong style="color:#38a169">z₀ = −13.15</strong>
+                        </div>
+                    </div>
+                    <div class="calc-row">
+                        <div class="calc-step">
+                            <div class="calc-step-label">Nhãn 1 — NEGATIVE</div>
+                            z₁ = b₁ + 0.4(0.2) + 2.8(2.5) + 3.1(2.8) + 1.2(1.1) + 0.9(0.6)<br>
+                            z₁ = 0.8 + 0.08 + 7.00 + 8.68 + 1.32 + 0.54<br>
+                            <strong style="color:#e53e3e">z₁ = +18.42</strong>
+                        </div>
+                    </div>
+                    <div class="calc-row">
+                        <div class="calc-step">
+                            <div class="calc-step-label">Nhãn 2 — SPOILER</div>
+                            z₂ = b₂ + 0.4(0.1) + 2.8(0.3) + 3.1(0.2) + 1.2(0.1) + 0.9(0.1)<br>
+                            z₂ = −0.3 + 0.04 + 0.84 + 0.62 + 0.12 + 0.09<br>
+                            <strong style="color:#d69e2e">z₂ = +1.41</strong>
+                        </div>
+                    </div>
+
+                    <div class="walkthrough-title">🔢 Bước 3 — Tính Exponentials</div>
+                    <div class="calc-row">
+                        <div class="calc-step">
+                            <div class="calc-step-label">e^(z₀) với z₀ = −13.15</div>
+                            e^(−13.15) ≈ 0.00000194 ≈ <strong>1.94 × 10⁻⁶</strong>
+                        </div>
+                        <div class="calc-step">
+                            <div class="calc-step-label">e^(z₁) với z₁ = +18.42</div>
+                            e^(+18.42) ≈ <strong>1.01 × 10⁸</strong>
+                        </div>
+                        <div class="calc-step">
+                            <div class="calc-step-label">e^(z₂) với z₂ = +1.41</div>
+                            e^(+1.41) ≈ <strong>4.10</strong>
+                        </div>
+                    </div>
+
+                    <div class="walkthrough-title">🔢 Bước 4 — Áp Dụng Softmax</div>
+                    <div class="calc-row">
+                        <div class="calc-step">
+                            <div class="calc-step-label">Tổng mẫu số</div>
+                            S = 1.94×10⁻⁶ + 1.01×10⁸ + 4.10 ≈ <strong>1.01 × 10⁸</strong>
+                        </div>
+                    </div>
+
+                    <div class="calc-row">
+                        <div class="calc-step">
+                            <div class="calc-step-label">P(POSITIVE)</div>
+                            = 1.94×10⁻⁶ / 1.01×10⁸ ≈ <strong>1.9 × 10⁻¹⁴ ≈ 0.00%</strong>
+                        </div>
+                        <div class="calc-step">
+                            <div class="calc-step-label">P(NEGATIVE)</div>
+                            = 1.01×10⁸ / 1.01×10⁸ ≈ <strong>99.99999%</strong>
+                        </div>
+                        <div class="calc-step">
+                            <div class="calc-step-label">P(SPOILER)</div>
+                            = 4.10 / 1.01×10⁸ ≈ <strong>4.05 × 10⁻⁸ ≈ 0.00%</strong>
+                        </div>
+                    </div>
+
+                    <div class="prob-bar">
+                        <div class="prob-bar-segment" style="width:0%;background:#38a169">0%</div>
+                        <div class="prob-bar-segment" style="width:100%;background:#e53e3e">99.99%</div>
+                        <div class="prob-bar-segment" style="width:0%;background:#d69e2e">0%</div>
+                    </div>
+
+                    <div class="result-highlight negative">
+                        <div style="font-size:13px;color:#c53030;margin-bottom:6px">KẾT QUẢ PHÂN LOẠI</div>
+                        <div style="font-size:24px;font-weight:900;color:#e53e3e">
+                            Nhãn dự đoán: <strong>1 — NEGATIVE</strong>
+                        </div>
+                        <div style="font-size:13px;color:#c53030;margin-top:6px">
+                            Độ tự tin: 99.99999% &nbsp;|&nbsp; Quyết định: REJECTED
+                        </div>
+                    </div>
+
+                    <div class="highlight-box">
+                        <strong>Phân tích kết quả:</strong> Mô hình gần như tuyệt đối tự tin rằng "Phim dở tệ, phí tiền" thuộc nhãn NEGATIVE (1). Các từ "dở" và "tệ" có trọng số dương cực lớn với nhãn 1 và trọng số âm cực lớn với nhãn 0, tạo ra chênh lệch logit \( z_1 - z_0 \approx 31.57 \) đơn vị — một khoảng cách "an toàn" rất lớn. Đây là lý do mô hình hoạt động xuất sắc với các câu có ý kiến rõ ràng.
+                    </div>
+                </div>
+
+                <h3>Huấn Luyện: Vòng Lặp 1000 Iterations — Gradient Descent</h3>
+                <p>
+                    Tham số <code>max_iter=1000</code> kiểm soát số lần vòng lặp Gradient Descent tối đa. Mỗi iteration gồm 3 bước: (1) tính dự đoán hiện tại với các trọng số hiện có, (2) tính gradient — hướng và độ lớn cần điều chỉnh trọng số để giảm sai số, (3) cập nhật trọng số theo hướng giảm Sai số (Loss). Loss function được sử dụng là Cross-Entropy cho bài toán đa lớp.
+                </p>
+
+                <div class="math-block">
+                    <div class="math-label">Cross-Entropy Loss (hàm mất mát)</div>
+                    $$\mathcal{L}(W) = -\sum_{d=1}^{N} \sum_{k=0}^{2} y_{d,k} \cdot \log\left( \hat{y}_{d,k} \right)$$
+                </div>
+
+                <p>
+                    Trong đó: \( N \) là số câu huấn luyện, \( y_{d,k} \) là nhãn thực (0 hoặc 1), \( \hat{y}_{d,k} \) là xác suất dự đoán của nhãn \( k \) cho câu \( d \). Mục tiêu của Gradient Descent là tìm ma trận \( W^* \) sao cho \( \mathcal{L}(W^*) \) đạt giá trị nhỏ nhất có thể.
+                </p>
+
+                <div class="code-block">
+<code><span class="comment"># Minh họa spirit của quá trình gradient descent</span>
+<span class="keyword">for</span> iteration <span class="keyword">in</span> <span class="function">range</span>(<span class="number">1000</span>):        <span class="comment"># max_iter=1000</span>
+    y_pred = softmax(W @ X_train.T + b)  <span class="comment"># Dự đoán với W hiện tại</span>
+    loss = cross_entropy(y_pred, y_true)  <span class="comment"># Tính sai số</span>
+    gradient = X_train.T @ (y_pred - y_true) <span class="comment"># Lan truyền ngược</span>
+    W = W - learning_rate * gradient       <span class="comment"># Cập nhật trọng số ↓ sai số</span>
+    <span class="keyword">if</span> loss_converged: <span class="keyword">break</span>              <span class="comment"># Dừng sớm nếu đã hội tụ</span></code>
+                </div>
+            </div>
+        </article>
+
+        <!-- ===== SECTION 4: HYPERPARAMETERS TABLE ===== -->
+        <article class="section-card">
+            <div class="section-header">
+                <div class="section-number">4</div>
+                <div class="section-title-group">
+                    <div class="section-title">GIẢI MÃ THAM SỐ CODE PIPELINE</div>
+                    <div class="section-subtitle">Hyperparameters &nbsp;|&nbsp; Sklearn API Reference &nbsp;|&nbsp; Engineering Rationale</div>
+                </div>
+            </div>
+            <div class="section-body">
+
+                <p class="lead">
+                    Bảng dưới đây giải mã toàn bộ hyperparameters được cấu hình trong pipeline, giải thích giá trị mặc định, lý do kỹ thuật đằng sau mỗi lựa chọn, và tác động thực tế đến hiệu suất mô hình.
+                </p>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width:200px">Tham số</th>
+                                <th style="width:120px">Giá trị</th>
+                                <th>Giải thích kỹ thuật</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+
+                            <!-- max_features -->
+                            <tr>
+                                <td><span class="param-name">max_features</span></td>
+                                <td><span class="param-value">15_000</span></td>
+                                <td>
+                                    Giới hạn số lượng từ/cụm từ tối đa được giữ lại trong vocabulary sau khi fit trên tập huấn luyện. Chỉ 15.000 từ/cụm có TF-IDF cao nhất được giữ. Giá trị này là sự cân bằng giữa <strong>độ phong phú đặc trưng</strong> (nhiều từ hơn → mô hình nhận diện được nhiều biến thể ngôn ngữ hơn) và <strong>quá khớp</strong> (quá nhiều từ → mô hình học cả nhiễu). 15.000 là ngưỡng phổ biến cho bài toán phân loại văn bản có quy mô vừa.
+                                </td>
+                            </tr>
+
+                            <!-- ngram_range -->
+                            <tr>
+                                <td><span class="param-name">ngram_range</span></td>
+                                <td><span class="param-value">(1, 3)</span></td>
+                                <td>
+                                    Xác định phạm vi n-grams được sinh ra. <code>(1, 3)</code> có nghĩa là mô hình học cùng lúc: <strong>Unigram</strong> (1 từ: "hay", "dở"), <strong>Bigram</strong> (2 từ: "rất hay", "quá dở"), và <strong>Trigram</strong> (3 từ: "cực kỳ hay", "phim này dở"). Điều này đặc biệt quan trọng với tiếng Việt vì cụm từ mang ý nghĩa cảm xúc rõ hơn nhiều so với từ đơn lẻ. Ví dụ: "không hay" ≠ "hay" ≠ "rất hay" — cả 3 có ý nghĩa khác nhau hoàn toàn.
+                                </td>
+                            </tr>
+
+                            <!-- min_df -->
+                            <tr>
+                                <td><span class="param-name">min_df</span></td>
+                                <td><span class="param-value">2</span></td>
+                                <td>
+                                    Bỏ qua các từ xuất hiện trong <strong>ít hơn 2 văn bản</strong> trong tập huấn luyện. Từ xuất hiện chỉ 1 lần (hapax legomena) thường là lỗi tách từ, từ viết tắt, hoặc nhiễu không có giá trị phân loại tổng quát. <code>min_df=2</code> là ngưỡng tối thiểu an toàn: loại bỏ nhiễu nhưng vẫn giữ được từ hiếm có ý nghĩa (ví dụ: tên diễn viên chỉ xuất hiện 3 lần nhưng là đặc trưng mạnh cho nhãn SPOILER).
+                                </td>
+                            </tr>
+
+                            <!-- max_df -->
+                            <tr>
+                                <td><span class="param-name">max_df</span></td>
+                                <td><span class="param-value">0.95</span></td>
+                                <td>
+                                    Bỏ qua các từ xuất hiện trong <strong>hơn 95% văn bản</strong>. Đây là các "stop words cấu trúc" — những từ quá phổ biến như "phim", "xem", "mình" gần như xuất hiện trong mọi bình luận và <strong>mang giá trị phân biệt gần bằng 0</strong>. Ngưỡng 0.95 thay vì 1.0 để phòng trường hợp một từ "siêu phổ biến" thực sự chỉ chiếm 95% corpus, tránh triệt tiêu hoàn toàn các từ cực kỳ phổ biến mà không loại bỏ quá nhiều.
+                                </td>
+                            </tr>
+
+                            <!-- solver -->
+                            <tr>
+                                <td><span class="param-name">solver</span></td>
+                                <td><span class="param-value">"lbfgs"</span></td>
+                                <td>
+                                    Thuật toán tối ưu hóa (optimizer) giải bài toán tìm trọng số tối ưu. <code>L-BFGS</code> (Limited-memory Broyden–Fletcher–Goldfarb–Shanno) là thuật toán quasi-Newton cổ điển, sử dụng xấp xỉ ma trận Hessian để hội tụ nhanh. <strong>LBFGS không dùng learning rate cố định</strong> mà tự điều chỉnh — phù hợp với tập dữ liệu vừa và nhỏ (dưới vài trăm nghìn mẫu). Đây là lựa chọn mặc định tối ưu cho bài toán Multinomial Logistic Regression.
+                                </td>
+                            </tr>
+
+                            <!-- max_iter -->
+                            <tr>
+                                <td><span class="param-name">max_iter</span></td>
+                                <td><span class="param-value">1000</span></td>
+                                <td>
+                                    Số lần lặp tối đa của thuật toán tối ưu hóa L-BFGS trước khi dừng. Mỗi iteration thực hiện một bước Gradient Descent (hoặc quasi-Newton step với L-BFGS): <strong>tính sai số → tính gradient → cập nhật trọng số</strong>. 1000 iterations là đủ để L-BFGS hội tụ với hầu hết tập dữ liệu phân loại văn bản quy mô vừa. Nếu mô hình chưa hội tụ sau 1000 bước (loss vẫn giảm đều), cần tăng lên 2000 hoặc kiểm tra dữ liệu.
+                                </td>
+                            </tr>
+
+                            <!-- class_weight -->
+                            <tr>
+                                <td><span class="param-name">class_weight</span></td>
+                                <td><span class="param-value">"balanced"</span></td>
+                                <td>
+                                    Tự động cân bằng trọng số của mỗi lớp theo tần suất nghịch đảo của nó trong dữ liệu huấn luyện. Nếu tập huấn luyện có 70% POSITIVE, 25% NEGATIVE, 5% SPOILER, thì class_weight sẽ tự động nhân trọng số SPOILER lên ~14 lần để "bù" cho sự thiếu hụt. Công thức: \( w_k = \frac{N}{K \cdot n_k} \) với \( N \): tổng mẫu, \( K \): số lớp, \( n_k \): số mẫu lớp k. Điều này <strong>ngăn mô hình "lười" chỉ dự đoán lớp chiếm đa số</strong> và đảm bảo mô hình học đủ từ cả 3 lớp.
+                                </td>
+                            </tr>
+
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3>Tổng Kết Tương Tác Giữa Các Tham Số</h3>
+
+                <div class="highlight-box">
+                    <strong>Tương tác đa chiều giữa các hyperparameters:</strong><br><br>
+                    <code>max_features=15000</code> + <code>ngram_range=(1,3)</code> → Tạo ra ~15.000 vector chiều với cả unigram, bigram, trigram. Nếu tăng max_features lên 20000, kích thước vector tăng nhưng có thể gây overfitting. Nếu giảm ngram_range xuống (1,1), mô hình mất thông tin cụm từ quan trọng.<br><br>
+                    <code>min_df=2</code> + <code>max_df=0.95</code> → Lọc đồng thời từ quá hiếm (nhiễu) và quá phổ biến (stop words). Nếu tăng min_df lên 5, vocabulary thu hẹp → model đơn giản hơn nhưng có thể bỏ sót từ hiếm có ý nghĩa.<br><br>
+                    <code>class_weight="balanced"</code> + <code>max_iter=1000</code> → Trọng số cân bằng làm loss landscape phức tạp hơn, có thể cần nhiều iterations hơn để hội tụ so với dữ liệu mất cân bằng nhẹ.
+                </div>
+
+                <h3>Sơ Đồ Tổng Thể Pipeline Hoàn Chỉnh</h3>
+
+                <div class="step-flow" style="margin-top:20px">
+                    <div class="step-item active" style="background:#fff5f5;border-color:#e53e3e">
+                        <div class="step-number-circle" style="background:#e53e3e">1</div>
+                        <div class="step-name">Bình luận gốc</div>
+                        <div class="step-desc">Chuỗi văn bản thô</div>
+                    </div>
+                    <div class="step-arrow">→</div>
+                    <div class="step-item active">
+                        <div class="step-number-circle">2</div>
+                        <div class="step-name">Hard Rules</div>
+                        <div class="step-desc">max_features=15_000 | ngram=(1,3)</div>
+                    </div>
+                    <div class="step-arrow">→</div>
+                    <div class="step-item active">
+                        <div class="step-number-circle">3</div>
+                        <div class="step-name">TF-IDF</div>
+                        <div class="step-desc">min_df=2 | max_df=0.95</div>
+                    </div>
+                    <div class="step-arrow">→</div>
+                    <div class="step-item active" style="background:#faf5ff;border-color:#6b46c1">
+                        <div class="step-number-circle" style="background:#6b46c1">4</div>
+                        <div class="step-name">Logistic Regression</div>
+                        <div class="step-desc">solver=lbfgs | max_iter=1000 | balanced</div>
+                    </div>
+                    <div class="step-arrow">→</div>
+                    <div class="step-item active" style="background:#e6fffa;border-color:#319795">
+                        <div class="step-number-circle" style="background:#319795">5</div>
+                        <div class="step-name">Softmax</div>
+                        <div class="step-desc">APPROVED | REJECTED | SPOILER_WARNING</div>
+                    </div>
+                </div>
+
+            </div>
+        </article>
+
+    </main>
+
+    <footer class="footer">
+        <div class="footer-line"></div>
+        <p>Báo Cáo Kỹ Thuật — Mô Hình Phân Loại Cảm Xúc &amp; Spoiler Bình Luận Phim</p>
+        <p>Hybrid System: Hard Rules + TF-IDF Vectorizer + Multinomial Logistic Regression</p>
+        <p style="margin-top:8px;opacity:0.6">Vietnamese NLP Pipeline &nbsp;|&nbsp; MathJax Equations &nbsp;|&nbsp; Optimized for A4 Print</p>
+    </footer>
+
+</body>
+</html>
